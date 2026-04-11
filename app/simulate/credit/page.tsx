@@ -1,11 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import type {
   SimulationResult,
   AmortizationMethod,
   IndirectChargeInput,
 } from "@/lib/credit/types";
+import { simulate } from "@/lib/credit";
+import { downloadCreditPDF, type DownloadMode } from "@/lib/pdf";
 
 // ============================================================
 // Tipos de crédito disponibles (se pueden traer de BD a futuro)
@@ -41,10 +43,31 @@ export default function CreditSimulatorPage() {
   );
   const [newChargeValue, setNewChargeValue] = useState("");
 
-  // Result state
+  // Result state — se guardan ambos métodos para descarga PDF
   const [result, setResult] = useState<SimulationResult | null>(null);
+  const [resultFrench, setResultFrench] = useState<SimulationResult | null>(null);
+  const [resultGerman, setResultGerman] = useState<SimulationResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // PDF download state
+  const [showDownloadMenu, setShowDownloadMenu] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const downloadMenuRef = useRef<HTMLDivElement>(null);
+
+  // Cerrar dropdown al hacer click fuera
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (
+        downloadMenuRef.current &&
+        !downloadMenuRef.current.contains(e.target as Node)
+      ) {
+        setShowDownloadMenu(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   // ------------------------------------------------------------
   // Handlers
@@ -81,16 +104,21 @@ export default function CreditSimulatorPage() {
     setError(null);
 
     try {
+      const params = {
+        amount: parseFloat(amount),
+        termMonths: parseInt(termMonths, 10),
+        annualInterestRate: parseFloat(annualRate),
+        creditTypeName: creditType,
+        additionalCharges,
+      };
+
+      // Llamar al API con el método seleccionado
       const res = await fetch("/api/simulate/credit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          amount: parseFloat(amount),
-          termMonths: parseInt(termMonths, 10),
-          annualInterestRate: parseFloat(annualRate),
+          ...params,
           amortizationMethod: method,
-          creditTypeName: creditType,
-          additionalCharges,
         }),
       });
 
@@ -99,14 +127,45 @@ export default function CreditSimulatorPage() {
       if (!res.ok) {
         setError(data.error || "Error al simular");
         setResult(null);
+        setResultFrench(null);
+        setResultGerman(null);
       } else {
         setResult(data);
+
+        // Calcular AMBOS métodos localmente para tenerlos listos para PDF
+        const frenchResult = simulate({
+          ...params,
+          amortizationMethod: "FRENCH",
+        });
+        const germanResult = simulate({
+          ...params,
+          amortizationMethod: "GERMAN",
+        });
+        setResultFrench(frenchResult);
+        setResultGerman(germanResult);
       }
     } catch {
       setError("Error de conexión con el servidor");
       setResult(null);
+      setResultFrench(null);
+      setResultGerman(null);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleDownload(mode: DownloadMode) {
+    if (!resultFrench || !resultGerman) return;
+    setDownloading(true);
+    setShowDownloadMenu(false);
+
+    try {
+      await downloadCreditPDF(resultFrench, resultGerman, mode);
+    } catch (err) {
+      console.error("Error al generar PDF:", err);
+      setError("Error al generar el PDF. Intente de nuevo.");
+    } finally {
+      setDownloading(false);
     }
   }
 
@@ -440,6 +499,145 @@ export default function CreditSimulatorPage() {
 
             {result && (
               <>
+                {/* ── Barra de acciones (descarga PDF) ── */}
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-semibold text-white">
+                    Resultados de la Simulación
+                  </h2>
+
+                  {/* Botón de descarga con dropdown */}
+                  <div className="relative" ref={downloadMenuRef}>
+                    <button
+                      type="button"
+                      onClick={() => setShowDownloadMenu(!showDownloadMenu)}
+                      disabled={downloading}
+                      className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-medium text-slate-300 transition-all hover:border-indigo-500/50 hover:bg-indigo-500/10 hover:text-white disabled:opacity-50"
+                    >
+                      {downloading ? (
+                        <>
+                          <svg
+                            className="h-4 w-4 animate-spin"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                          >
+                            <circle
+                              className="opacity-25"
+                              cx="12"
+                              cy="12"
+                              r="10"
+                              stroke="currentColor"
+                              strokeWidth="4"
+                            />
+                            <path
+                              className="opacity-75"
+                              fill="currentColor"
+                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                            />
+                          </svg>
+                          Generando…
+                        </>
+                      ) : (
+                        <>
+                          {/* Download icon */}
+                          <svg
+                            className="h-4 w-4"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                            />
+                          </svg>
+                          Descargar PDF
+                          {/* Chevron */}
+                          <svg
+                            className={`h-3 w-3 transition-transform ${showDownloadMenu ? "rotate-180" : ""}`}
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M19 9l-7 7-7-7"
+                            />
+                          </svg>
+                        </>
+                      )}
+                    </button>
+
+                    {/* Dropdown menu */}
+                    {showDownloadMenu && (
+                      <div className="absolute right-0 top-full z-50 mt-2 w-64 overflow-hidden rounded-xl border border-white/10 bg-slate-900/95 shadow-2xl shadow-black/50 backdrop-blur-xl">
+                        <div className="p-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleDownload("FRENCH")}
+                            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm text-slate-300 transition hover:bg-white/5 hover:text-white"
+                          >
+                            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-500/10 text-indigo-400">
+                              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                              </svg>
+                            </span>
+                            <div>
+                              <p className="font-medium">Solo Francés</p>
+                              <p className="text-xs text-slate-500">
+                                Cuota fija — 1 tabla
+                              </p>
+                            </div>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDownload("GERMAN")}
+                            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm text-slate-300 transition hover:bg-white/5 hover:text-white"
+                          >
+                            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-500/10 text-violet-400">
+                              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                              </svg>
+                            </span>
+                            <div>
+                              <p className="font-medium">Solo Alemán</p>
+                              <p className="text-xs text-slate-500">
+                                Capital constante — 1 tabla
+                              </p>
+                            </div>
+                          </button>
+
+                          <div className="my-1 border-t border-white/5" />
+
+                          <button
+                            type="button"
+                            onClick={() => handleDownload("BOTH")}
+                            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm text-slate-300 transition hover:bg-white/5 hover:text-white"
+                          >
+                            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-400">
+                              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" />
+                              </svg>
+                            </span>
+                            <div>
+                              <p className="font-medium">
+                                Ambos métodos
+                              </p>
+                              <p className="text-xs text-slate-500">
+                                Comparación completa — 2 tablas
+                              </p>
+                            </div>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
                 {/* ── Resumen en tarjetas ── */}
                 <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                   <SummaryCard
