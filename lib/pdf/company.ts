@@ -1,28 +1,9 @@
 // ============================================================
-// Datos estáticos de la empresa
+// Datos de la empresa — Dinámicos desde el panel de admin
 // ============================================================
 //
-// IMPORTANTE PARA DESARROLLADORES:
-// Estos datos son estáticos por ahora. Para migrar a datos
-// dinámicos, reemplazar esta constante por una consulta a la
-// tabla `Institution` de Supabase.
-//
-// Ejemplo de migración futura:
-//
-//   import { supabase } from "@/lib/supabase";
-//
-//   export async function getCompanyInfo() {
-//     const { data } = await supabase
-//       .from("Institution")
-//       .select("*")
-//       .single();
-//     return {
-//       name: data.name,
-//       legalName: data.name,
-//       ruc: data.ruc,
-//       ...
-//     };
-//   }
+// Los datos se obtienen del endpoint GET /institution del backend.
+// Si la petición falla, se usa COMPANY_INFO como fallback.
 //
 // ============================================================
 
@@ -33,33 +14,46 @@ export interface CompanyInfo {
   legalName: string;
   /** RUC de la empresa */
   ruc: string;
-  /** Dirección principal */
-  address: string;
-  /** Teléfono de contacto */
-  phone: string;
-  /** Email corporativo */
-  email: string;
-  /** Sitio web */
-  website: string;
+  /** Información de contacto */
+  contact: string;
   /** Slogan o descripción corta */
   tagline: string;
-  // FUTURO: agregar logoUrl cuando se integre con la BD
-  // logoUrl?: string;
+  /** URL del logo institucional (opcional) */
+  logoUrl?: string;
 }
 
 /**
- * Información de la empresa para encabezados de PDF y reportes.
- *
- * ⚠️ EDITABLE: Modifique estos valores según la institución.
- * En el futuro, este objeto se reemplazará por datos de la BD.
+ * Datos de empresa por defecto (fallback si falla la carga).
  */
 export const COMPANY_INFO: CompanyInfo = {
   name: "SisConta",
   legalName: "SisConta S.A.",
   ruc: "1791234567001",
-  address: "Av. República E7-123, Quito, Ecuador",
-  phone: "(02) 256-7890",
-  email: "info@sisconta.ec",
-  website: "www.sisconta.ec",
+  contact: "Quito, Ecuador",
   tagline: "Sistema Contable Financiero",
 };
+
+/**
+ * Construye un objeto CompanyInfo a partir de los datos de la
+ * tabla Institution del backend.
+ *
+ * @param institution - Datos crudos de GET /institution
+ * @returns CompanyInfo para usar en los PDFs
+ */
+export function buildCompanyInfo(institution: {
+  name?: string;
+  ruc?: string;
+  contact?: string;
+  logoUrl?: string;
+} | null): CompanyInfo {
+  if (!institution) return COMPANY_INFO;
+
+  return {
+    name: institution.name || COMPANY_INFO.name,
+    legalName: institution.name || COMPANY_INFO.legalName,
+    ruc: institution.ruc || COMPANY_INFO.ruc,
+    contact: institution.contact || COMPANY_INFO.contact,
+    tagline: "Sistema Contable Financiero",
+    logoUrl: institution.logoUrl || undefined,
+  };
+}

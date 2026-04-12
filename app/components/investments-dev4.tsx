@@ -290,7 +290,7 @@ export default function InvestmentsDev4() {
   function loadProductToForm(product: InvestmentProduct) {
     setProductForm({
       name: product.name,
-      purpose: product.purpose,
+      purpose: product.purpose || "",
       minAmount: String(product.minAmount),
       maxAmount: String(product.maxAmount),
       minTermMonths: String(product.minTermMonths),

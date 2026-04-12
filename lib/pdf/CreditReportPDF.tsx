@@ -5,9 +5,9 @@
 // Usa @react-pdf/renderer para generar PDFs en el cliente.
 //
 // ESTRUCTURA DEL PDF:
-//   1. Encabezado con datos de empresa
+//   1. Encabezado con datos de empresa (dinámicos desde admin)
 //   2. Parámetros del crédito ingresados
-//   3. Cobros indirectos aplicados (SOLCA + adicionales)
+//   3. Cobros indirectos aplicados (SOLCA + obligatorios + adicionales)
 //   4. Resumen financiero (tarjetas)
 //   5. Tabla de amortización completa
 //   6. Pie de página con número de página y disclaimer
@@ -23,9 +23,11 @@ import {
   Page,
   Text,
   View,
+  Image,
   StyleSheet,
 } from "@react-pdf/renderer";
 import type { SimulationResult } from "@/lib/credit/types";
+import type { CompanyInfo } from "./company";
 import { COMPANY_INFO } from "./company";
 
 // ============================================================
@@ -69,6 +71,16 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   headerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  headerLogo: {
+    width: 50,
+    height: 50,
+    objectFit: "contain" as const,
+  },
+  headerTextBlock: {
     flexDirection: "column",
   },
   companyName: {
@@ -347,6 +359,8 @@ function methodLabel(method: string): string {
 export interface CreditReportPDFProps {
   /** Resultados a incluir en el PDF (1 o 2 si es "ambos") */
   results: SimulationResult[];
+  /** Datos de la empresa (dinámicos desde admin) */
+  companyInfo?: CompanyInfo;
   /** Fecha de generación (se usa para el reporte) */
   generatedAt?: Date;
 }
@@ -356,6 +370,7 @@ export interface CreditReportPDFProps {
 // ============================================================
 export function CreditReportPDF({
   results,
+  companyInfo = COMPANY_INFO,
   generatedAt = new Date(),
 }: CreditReportPDFProps) {
   const isBoth = results.length > 1;
@@ -377,20 +392,22 @@ export function CreditReportPDF({
         {/* ── Encabezado de empresa ── */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
-            <Text style={styles.companyName}>{COMPANY_INFO.name}</Text>
-            <Text style={styles.companyTagline}>{COMPANY_INFO.tagline}</Text>
+            {companyInfo.logoUrl && (
+              <Image src={companyInfo.logoUrl} style={styles.headerLogo} />
+            )}
+            <View style={styles.headerTextBlock}>
+              <Text style={styles.companyName}>{companyInfo.name}</Text>
+              <Text style={styles.companyTagline}>{companyInfo.tagline}</Text>
+            </View>
           </View>
           <View style={styles.headerRight}>
             <Text style={styles.headerRightText}>
-              {COMPANY_INFO.legalName}
+              {companyInfo.legalName}
             </Text>
             <Text style={styles.headerRightText}>
-              RUC: {COMPANY_INFO.ruc}
+              RUC: {companyInfo.ruc}
             </Text>
-            <Text style={styles.headerRightText}>{COMPANY_INFO.address}</Text>
-            <Text style={styles.headerRightText}>
-              Tel: {COMPANY_INFO.phone} | {COMPANY_INFO.email}
-            </Text>
+            <Text style={styles.headerRightText}>{companyInfo.contact}</Text>
           </View>
         </View>
 
@@ -597,8 +614,7 @@ export function CreditReportPDF({
         {/* ── Pie de página ── */}
         <View style={styles.footer} fixed>
           <Text style={styles.footerText}>
-            {COMPANY_INFO.name} — {COMPANY_INFO.website} — Documento generado
-            automáticamente
+            {companyInfo.name} — Documento generado automáticamente
           </Text>
           <Text
             style={styles.footerText}

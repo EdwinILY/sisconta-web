@@ -7,6 +7,7 @@ export type Institution = {
   ruc?: string;
   contact?: string;
   logo?: string;
+  logoUrl?: string;
 };
 
 export async function getInstitution(): Promise<Institution> {
