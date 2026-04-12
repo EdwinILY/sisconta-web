@@ -1,12 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   getCurrentUser,
   isAuthenticated,
-  logout,
-  getToken,
 } from "@/lib/api/auth";
 import {
   getInstitution,
@@ -34,15 +32,17 @@ type Section = "institution" | "creditTypes" | "charges";
 
 export default function AdminPage() {
   const router = useRouter();
-  const [section, setSection] = useState<Section>("institution");
+  const searchParams = useSearchParams();
+
+  const initialSection = (searchParams.get("section") as Section) || "institution";
+
+  const [section, setSection] = useState<Section>(initialSection);
   const [user, setUser] = useState<ReturnType<typeof getCurrentUser>>(null);
   const [loading, setLoading] = useState(true);
 
-  // Global state for alerts
   const [alertError, setAlertError] = useState("");
   const [alertSuccess, setAlertSuccess] = useState("");
 
-  // Institution State
   const [institution, setInstitution] = useState<Institution | null>(null);
   const [institutionLoading, setInstitutionLoading] = useState(false);
   const [institutionName, setInstitutionName] = useState("");
@@ -51,7 +51,6 @@ export default function AdminPage() {
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string>("");
 
-  // Credit Types State
   const [creditTypes, setCreditTypes] = useState<CreditType[]>([]);
   const [creditTypesLoading, setCreditTypesLoading] = useState(false);
   const [creditTypeForm, setCreditTypeForm] = useState({
@@ -61,9 +60,9 @@ export default function AdminPage() {
     annualInterestRate: "",
     amortizationSystems: [] as string[],
   });
-  const [creditTypeErrors, setCreditTypeErrors] = useState<
-    Record<string, string>
-  >({});
+  const [creditTypeErrors, setCreditTypeErrors] = useState<Record<string, string>>(
+    {}
+  );
   const [creditTypeSubmitting, setCreditTypeSubmitting] = useState(false);
   const [editingCreditTypeId, setEditingCreditTypeId] = useState<string | null>(
     null
@@ -71,7 +70,6 @@ export default function AdminPage() {
   const [showCreditTypeModal, setShowCreditTypeModal] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
-  // Charges State
   const [charges, setCharges] = useState<Charge[]>([]);
   const [chargesLoading, setChargesLoading] = useState(false);
   const [selectedCreditTypeId, setSelectedCreditTypeId] = useState("");
@@ -85,11 +83,15 @@ export default function AdminPage() {
   const [chargeSubmitting, setChargeSubmitting] = useState(false);
   const [showChargeModal, setShowChargeModal] = useState(false);
   const [editingChargeId, setEditingChargeId] = useState<string | null>(null);
-  const [deleteChargeConfirmId, setDeleteChargeConfirmId] = useState<
-    string | null
-  >(null);
+  const [deleteChargeConfirmId, setDeleteChargeConfirmId] = useState<string | null>(
+    null
+  );
 
-  // Auto-hide alerts
+  useEffect(() => {
+    const qpSection = (searchParams.get("section") as Section) || "institution";
+    setSection(qpSection);
+  }, [searchParams]);
+
   useEffect(() => {
     if (alertError) {
       const timer = setTimeout(() => setAlertError(""), 3000);
@@ -104,7 +106,6 @@ export default function AdminPage() {
     }
   }, [alertSuccess]);
 
-  // Check auth on mount
   useEffect(() => {
     if (!isAuthenticated()) {
       router.push("/login");
@@ -112,8 +113,9 @@ export default function AdminPage() {
     }
 
     const currentUser = getCurrentUser();
+
     if (currentUser?.role !== "ADMIN") {
-      router.push("/login");
+      router.push("/simulate/credit");
       return;
     }
 
@@ -121,12 +123,34 @@ export default function AdminPage() {
     setLoading(false);
   }, [router]);
 
-  // Load institution
   useEffect(() => {
     if (section === "institution" && !institutionLoading && !institution) {
-      loadInstitution();
+      void loadInstitution();
     }
   }, [section]);
+
+  useEffect(() => {
+    if (section === "creditTypes" && creditTypes.length === 0) {
+      void loadCreditTypes();
+    }
+  }, [section]);
+
+  useEffect(() => {
+    if (section === "charges" && creditTypes.length === 0) {
+      void loadCreditTypes();
+    }
+  }, [section]);
+
+  useEffect(() => {
+    if (section === "charges" && selectedCreditTypeId) {
+      void loadCharges();
+    }
+  }, [section, selectedCreditTypeId]);
+
+  function changeSection(next: Section) {
+    setSection(next);
+    router.replace(`/admin?section=${next}`);
+  }
 
   const loadInstitution = async () => {
     setInstitutionLoading(true);
@@ -136,9 +160,8 @@ export default function AdminPage() {
       setInstitutionName(data.name || "");
       setInstitutionRuc(data.ruc || "");
       setInstitutionContact(data.contact || "");
-      if (data.logo) {
-        setLogoPreview(data.logo);
-      }
+      if ((data as any).logo) setLogoPreview((data as any).logo);
+      if ((data as any).logoUrl) setLogoPreview((data as any).logoUrl);
     } catch (err) {
       const error = err as ApiErrorInfo;
       setAlertError(error.message);
@@ -173,18 +196,15 @@ export default function AdminPage() {
     }
   };
 
-  // Load credit types
-  useEffect(() => {
-    if (section === "creditTypes" && creditTypes.length === 0) {
-      loadCreditTypes();
-    }
-  }, [section]);
-
   const loadCreditTypes = async () => {
     setCreditTypesLoading(true);
     try {
       const data = await getCreditTypes();
       setCreditTypes(data);
+
+      if (!selectedCreditTypeId && data.length > 0) {
+        setSelectedCreditTypeId(data[0].id);
+      }
     } catch (err) {
       const error = err as ApiErrorInfo;
       setAlertError(error.message);
@@ -216,11 +236,11 @@ export default function AdminPage() {
     const maxAmount = parseFloat(creditTypeForm.maxAmount);
     const rate = parseFloat(creditTypeForm.annualInterestRate);
 
-    if (minAmount >= maxAmount) {
+    if (!Number.isNaN(minAmount) && !Number.isNaN(maxAmount) && minAmount >= maxAmount) {
       errors.maxAmount = "El monto máximo debe ser mayor al mínimo";
     }
 
-    if (rate < 0 || rate > 100) {
+    if (!Number.isNaN(rate) && (rate < 0 || rate > 100)) {
       errors.annualInterestRate = "La tasa debe estar entre 0 y 100";
     }
 
@@ -305,16 +325,10 @@ export default function AdminPage() {
       });
       setEditingCreditTypeId(null);
     }
+
     setCreditTypeErrors({});
     setShowCreditTypeModal(true);
   };
-
-  // Load charges
-  useEffect(() => {
-    if (section === "charges" && selectedCreditTypeId) {
-      loadCharges();
-    }
-  }, [section, selectedCreditTypeId]);
 
   const loadCharges = async () => {
     if (!selectedCreditTypeId) return;
@@ -343,7 +357,7 @@ export default function AdminPage() {
     }
 
     const value = parseFloat(chargeForm.value);
-    if (value <= 0) {
+    if (!Number.isNaN(value) && value <= 0) {
       errors.value = "El valor debe ser mayor a 0";
     }
 
@@ -423,179 +437,194 @@ export default function AdminPage() {
       });
       setEditingChargeId(null);
     }
+
     setChargeErrors({});
     setShowChargeModal(true);
   };
 
-  const handleLogout = () => {
-    logout();
-    router.push("/login");
-  };
+  const sectionTitle =
+    section === "institution"
+      ? "Gestión de Institución"
+      : section === "creditTypes"
+      ? "Tipos de Crédito"
+      : "Cargos Indirectos";
+
+  const sectionDescription =
+    section === "institution"
+      ? "Actualiza la identidad visual y los datos generales de la institución."
+      : section === "creditTypes"
+      ? "Define montos, tasas y sistemas de amortización permitidos."
+      : "Administra cargos indirectos asociados a cada tipo de crédito.";
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
-        <div className="text-center">
-          <div className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600">Cargando...</p>
+      <div className="w-full">
+        <div className="rounded-3xl bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 p-10 text-center text-slate-300 shadow-xl">
+          <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-4 border-indigo-300/20 border-t-indigo-400" />
+          Cargando panel administrativo...
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex h-screen bg-gray-50">
-      {/* Sidebar */}
-      <div className="w-64 bg-white border-r border-gray-200 flex flex-col">
-        {/* Logo & Title */}
-        <div className="p-6 border-b border-gray-200">
-          <h1 className="text-2xl font-bold text-blue-900">SISCONTA</h1>
-          <p className="text-xs text-gray-600 mt-1">Admin</p>
-        </div>
+    <div className="w-full">
+      <div className="overflow-hidden rounded-3xl bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-white shadow-xl">
+        <header className="relative overflow-hidden border-b border-white/5">
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-500/10 via-transparent to-transparent" />
+          <div className="relative px-6 py-10 text-center sm:px-8 lg:px-10">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-[0.25em] text-blue-400">
+              SISCONTA · ADMINISTRACIÓN
+            </p>
+            <h1 className="text-3xl font-bold tracking-tight sm:text-4xl xl:text-5xl">
+              <span className="bg-gradient-to-r from-white via-blue-200 to-indigo-300 bg-clip-text text-transparent">
+                Configuración del sistema
+              </span>
+            </h1>
+            <p className="mx-auto mt-4 max-w-2xl text-sm text-slate-400 sm:text-base">
+              Administra institución, tipos de crédito y cargos indirectos desde
+              una única vista centralizada.
+            </p>
+          </div>
+        </header>
 
-        {/* Navigation */}
-        <nav className="flex-1 p-4 space-y-2">
-          <button
-            onClick={() => setSection("institution")}
-            className={`w-full text-left px-4 py-3 rounded-lg font-medium transition ${
-              section === "institution"
-                ? "bg-blue-100 text-blue-900"
-                : "text-gray-700 hover:bg-gray-100"
-            }`}
-          >
-            🏢 Institución
-          </button>
-          <button
-            onClick={() => setSection("creditTypes")}
-            className={`w-full text-left px-4 py-3 rounded-lg font-medium transition ${
-              section === "creditTypes"
-                ? "bg-blue-100 text-blue-900"
-                : "text-gray-700 hover:bg-gray-100"
-            }`}
-          >
-            💳 Tipos de Crédito
-          </button>
-          <button
-            onClick={() => setSection("charges")}
-            className={`w-full text-left px-4 py-3 rounded-lg font-medium transition ${
-              section === "charges"
-                ? "bg-blue-100 text-blue-900"
-                : "text-gray-700 hover:bg-gray-100"
-            }`}
-          >
-            💰 Cargos Indirectos
-          </button>
-        </nav>
+        {(alertError || alertSuccess) && (
+          <div className="px-4 pt-4 sm:px-6 lg:px-8">
+            {alertError ? (
+              <div className="rounded-2xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-300">
+                {alertError}
+              </div>
+            ) : null}
 
-        {/* User Info & Logout */}
-        <div className="border-t border-gray-200 p-4">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex-1">
-              <p className="text-sm font-medium text-gray-900">{user?.email}</p>
-              <p className="text-xs text-gray-500">{user?.role}</p>
+            {alertSuccess ? (
+              <div className="mt-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
+                {alertSuccess}
+              </div>
+            ) : null}
+          </div>
+        )}
+
+        <main className="px-4 py-6 sm:px-6 lg:px-8">
+          <section className="space-y-6">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 backdrop-blur-lg">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
+                Configuración general
+              </p>
+              <h2 className="mt-2 text-2xl font-bold text-white">
+                {sectionTitle}
+              </h2>
+              <p className="mt-2 text-sm text-slate-400">
+                {sectionDescription}
+              </p>
+
+              <div className="mt-5 flex flex-wrap gap-3">
+                <TabButton
+                  active={section === "institution"}
+                  onClick={() => changeSection("institution")}
+                  label="Institución"
+                />
+                <TabButton
+                  active={section === "creditTypes"}
+                  onClick={() => changeSection("creditTypes")}
+                  label="Tipos de Crédito"
+                />
+                <TabButton
+                  active={section === "charges"}
+                  onClick={() => changeSection("charges")}
+                  label="Cargos Indirectos"
+                />
+              </div>
             </div>
-          </div>
-          <button
-            onClick={handleLogout}
-            className="w-full bg-red-50 text-red-700 px-3 py-2 rounded-lg font-medium hover:bg-red-100 transition"
-          >
-            Logout
-          </button>
-        </div>
-      </div>
 
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col">
-        {/* Navbar */}
-        <div className="bg-white border-b border-gray-200 px-8 py-4">
-          <h2 className="text-2xl font-bold text-gray-900">
-            {section === "institution" && "Gestión de Institución"}
-            {section === "creditTypes" && "Tipos de Crédito"}
-            {section === "charges" && "Cargos Indirectos"}
-          </h2>
-        </div>
+            {section === "institution" && (
+              <InstitutionSection
+                institution={institution}
+                loading={institutionLoading}
+                institutionName={institutionName}
+                setInstitutionName={setInstitutionName}
+                institutionRuc={institutionRuc}
+                setInstitutionRuc={setInstitutionRuc}
+                institutionContact={institutionContact}
+                setInstitutionContact={setInstitutionContact}
+                logoPreview={logoPreview}
+                setLogoPreview={setLogoPreview}
+                setLogoFile={setLogoFile}
+                onSave={handleInstitutionSave}
+              />
+            )}
 
-        {/* Alerts */}
-        {alertError && (
-          <div className="mx-8 mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-red-700 font-medium">{alertError}</p>
-          </div>
-        )}
+            {section === "creditTypes" && (
+              <CreditTypesSection
+                creditTypes={creditTypes}
+                loading={creditTypesLoading}
+                showForm={showCreditTypeModal}
+                onShowForm={() => openCreditTypeForm()}
+                onHideForm={() => setShowCreditTypeModal(false)}
+                form={creditTypeForm}
+                setForm={setCreditTypeForm}
+                errors={creditTypeErrors}
+                submitting={creditTypeSubmitting}
+                onSubmit={handleCreditTypeSubmit}
+                onEdit={(ct: CreditType) => openCreditTypeForm(ct)}
+                onDelete={(id: string) => setDeleteConfirmId(id)}
+                deleteConfirmId={deleteConfirmId}
+                onConfirmDelete={handleDeleteCreditType}
+                onCancelDelete={() => setDeleteConfirmId(null)}
+              />
+            )}
 
-        {alertSuccess && (
-          <div className="mx-8 mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
-            <p className="text-green-700 font-medium">{alertSuccess}</p>
-          </div>
-        )}
-
-        {/* Content Area */}
-        <div className="flex-1 overflow-auto p-8">
-          {section === "institution" && (
-            <InstitutionSection
-              institution={institution}
-              loading={institutionLoading}
-              institutionName={institutionName}
-              setInstitutionName={setInstitutionName}
-              institutionRuc={institutionRuc}
-              setInstitutionRuc={setInstitutionRuc}
-              institutionContact={institutionContact}
-              setInstitutionContact={setInstitutionContact}
-              logoPreview={logoPreview}
-              setLogoPreview={setLogoPreview}
-              setLogoFile={setLogoFile}
-              onSave={handleInstitutionSave}
-            />
-          )}
-
-          {section === "creditTypes" && (
-            <CreditTypesSection
-              creditTypes={creditTypes}
-              loading={creditTypesLoading}
-              showForm={showCreditTypeModal}
-              onShowForm={() => openCreditTypeForm()}
-              onHideForm={() => setShowCreditTypeModal(false)}
-              form={creditTypeForm}
-              setForm={setCreditTypeForm}
-              errors={creditTypeErrors}
-              submitting={creditTypeSubmitting}
-              onSubmit={handleCreditTypeSubmit}
-              onEdit={(ct) => openCreditTypeForm(ct)}
-              onDelete={(id) => setDeleteConfirmId(id)}
-              deleteConfirmId={deleteConfirmId}
-              onConfirmDelete={handleDeleteCreditType}
-              onCancelDelete={() => setDeleteConfirmId(null)}
-            />
-          )}
-
-          {section === "charges" && (
-            <ChargesSection
-              creditTypes={creditTypes}
-              selectedCreditTypeId={selectedCreditTypeId}
-              setSelectedCreditTypeId={setSelectedCreditTypeId}
-              charges={charges}
-              loading={chargesLoading}
-              showForm={showChargeModal}
-              onShowForm={() => openChargeForm()}
-              onHideForm={() => setShowChargeModal(false)}
-              form={chargeForm}
-              setForm={setChargeForm}
-              errors={chargeErrors}
-              submitting={chargeSubmitting}
-              onSubmit={handleChargeSubmit}
-              onEdit={(c) => openChargeForm(c)}
-              onDelete={(id) => setDeleteChargeConfirmId(id)}
-              deleteConfirmId={deleteChargeConfirmId}
-              onConfirmDelete={handleDeleteCharge}
-              onCancelDelete={() => setDeleteChargeConfirmId(null)}
-            />
-          )}
-        </div>
+            {section === "charges" && (
+              <ChargesSection
+                creditTypes={creditTypes}
+                selectedCreditTypeId={selectedCreditTypeId}
+                setSelectedCreditTypeId={setSelectedCreditTypeId}
+                charges={charges}
+                loading={chargesLoading}
+                showForm={showChargeModal}
+                onShowForm={() => openChargeForm()}
+                onHideForm={() => setShowChargeModal(false)}
+                form={chargeForm}
+                setForm={setChargeForm}
+                errors={chargeErrors}
+                submitting={chargeSubmitting}
+                onSubmit={handleChargeSubmit}
+                onEdit={(c: Charge) => openChargeForm(c)}
+                onDelete={(id: string) => setDeleteChargeConfirmId(id)}
+                deleteConfirmId={deleteChargeConfirmId}
+                onConfirmDelete={handleDeleteCharge}
+                onCancelDelete={() => setDeleteChargeConfirmId(null)}
+              />
+            )}
+          </section>
+        </main>
       </div>
     </div>
   );
 }
 
-// Institution Section Component
+function TabButton({
+  active,
+  onClick,
+  label,
+}: {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`rounded-xl px-4 py-2.5 text-sm font-semibold transition ${
+        active
+          ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/20"
+          : "border border-white/10 bg-white/5 text-slate-300 hover:bg-white/10"
+      }`}
+    >
+      {label}
+    </button>
+  );
+}
+
 function InstitutionSection({
   institution,
   loading,
@@ -612,123 +641,102 @@ function InstitutionSection({
 }: any) {
   if (!institution) {
     return (
-      <div className="text-center">
-        <div className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
-        <p className="text-gray-600">Cargando institución...</p>
+      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-8 text-center text-slate-400 backdrop-blur-lg">
+        <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-blue-300/20 border-t-blue-400" />
+        Cargando institución...
       </div>
     );
   }
 
   return (
-    <div className="bg-white rounded-lg shadow-md p-6">
-      <div className="grid grid-cols-2 gap-8">
-        {/* Form */}
-        <div className="space-y-4">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">
-            Datos Generales
-          </h3>
+    <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <article className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 backdrop-blur-lg">
+        <h3 className="text-lg font-semibold text-white">Datos generales</h3>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Nombre <span className="text-red-500">*</span>
-            </label>
+        <div className="mt-5 space-y-4">
+          <Field label="Nombre">
             <input
               type="text"
               value={institutionName}
               onChange={(e) => setInstitutionName(e.target.value)}
               disabled={loading}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none disabled:opacity-50"
+              className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:opacity-50"
             />
-          </div>
+          </Field>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              RUC
-            </label>
+          <Field label="RUC">
             <input
               type="text"
               value={institutionRuc}
               onChange={(e) => setInstitutionRuc(e.target.value)}
               disabled={loading}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none disabled:opacity-50"
+              className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:opacity-50"
             />
-          </div>
+          </Field>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Contacto
-            </label>
+          <Field label="Contacto">
             <textarea
               value={institutionContact}
               onChange={(e) => setInstitutionContact(e.target.value)}
               disabled={loading}
-              rows={4}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none disabled:opacity-50"
+              rows={5}
+              className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:opacity-50"
             />
-          </div>
+          </Field>
 
           <button
             onClick={onSave}
             disabled={loading}
-            className="w-full bg-blue-600 text-white py-2 rounded-lg font-medium hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className="rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:from-blue-500 hover:to-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {loading ? (
-              <>
-                <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                Guardando...
-              </>
-            ) : (
-              "Guardar"
-            )}
+            {loading ? "Guardando..." : "Guardar cambios"}
           </button>
         </div>
+      </article>
 
-        {/* Logo Upload */}
-        <div>
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Logo</h3>
+      <article className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 backdrop-blur-lg">
+        <h3 className="text-lg font-semibold text-white">Logo institucional</h3>
 
-          <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 flex flex-col items-center justify-center min-h-64 bg-gray-50">
-            {logoPreview ? (
-              <div className="text-center">
-                <img
-                  src={logoPreview}
-                  alt="Logo"
-                  className="max-w-full max-h-48 mx-auto mb-4 rounded-lg"
-                />
-                <p className="text-sm text-gray-600 mb-2">Logo actual</p>
-              </div>
-            ) : (
-              <div className="text-center">
-                <p className="text-2xl mb-2">📷</p>
-                <p className="text-gray-600 text-sm">Sin logo</p>
-              </div>
-            )}
-          </div>
-
-          <input
-            type="file"
-            accept="image/*"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) {
-                setLogoFile(file);
-                const reader = new FileReader();
-                reader.onload = (event) => {
-                  setLogoPreview(event.target?.result as string);
-                };
-                reader.readAsDataURL(file);
-              }
-            }}
-            disabled={loading}
-            className="mt-4 w-full"
-          />
+        <div className="mt-5 rounded-2xl border border-dashed border-white/10 bg-white/[0.02] p-6">
+          {logoPreview ? (
+            <div className="text-center">
+              <img
+                src={logoPreview}
+                alt="Logo"
+                className="mx-auto mb-4 max-h-48 max-w-full rounded-xl bg-white p-3"
+              />
+              <p className="text-sm text-slate-400">Vista previa actual</p>
+            </div>
+          ) : (
+            <div className="flex min-h-[220px] flex-col items-center justify-center text-center text-slate-500">
+              <p className="text-4xl">🖼️</p>
+              <p className="mt-3 text-sm">No hay logo cargado</p>
+            </div>
+          )}
         </div>
-      </div>
+
+        <input
+          type="file"
+          accept="image/*"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) {
+              setLogoFile(file);
+              const reader = new FileReader();
+              reader.onload = (event) => {
+                setLogoPreview(event.target?.result as string);
+              };
+              reader.readAsDataURL(file);
+            }
+          }}
+          disabled={loading}
+          className="mt-4 block w-full text-sm text-slate-300 file:mr-4 file:rounded-xl file:border-0 file:bg-blue-500/15 file:px-4 file:py-2 file:font-semibold file:text-blue-300 hover:file:bg-blue-500/25"
+        />
+      </article>
     </div>
   );
 }
 
-// Credit Types Section Component
 function CreditTypesSection({
   creditTypes,
   loading,
@@ -750,288 +758,178 @@ function CreditTypesSection({
     <div className="space-y-4">
       <button
         onClick={onShowForm}
-        className="bg-blue-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-blue-700 transition"
+        className="rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:from-blue-500 hover:to-indigo-500"
       >
         + Nuevo Tipo de Crédito
       </button>
 
-      {/* Form Modal */}
       {showForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-2xl max-w-md w-full p-6">
-            <h3 className="text-lg font-semibold mb-4">
-              {form.id ? "Editar" : "Crear"} Tipo de Crédito
-            </h3>
+        <Modal
+          title={form.name ? "Editar Tipo de Crédito" : "Crear Tipo de Crédito"}
+          onClose={onHideForm}
+        >
+          <div className="space-y-4">
+            <Field label="Nombre" error={errors.name}>
+              <input
+                type="text"
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                className={inputClass(!!errors.name)}
+                disabled={submitting}
+              />
+            </Field>
 
-            <div className="space-y-4 max-h-96 overflow-y-auto">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Nombre <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={form.name}
-                  onChange={(e) =>
-                    setForm({ ...form, name: e.target.value })
-                  }
-                  className={`w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 ${
-                    errors.name
-                      ? "border-red-500 bg-red-50"
-                      : "border-gray-300"
-                  }`}
-                  disabled={submitting}
-                />
-                {errors.name && (
-                  <p className="text-red-500 text-sm mt-1">{errors.name}</p>
-                )}
-              </div>
+            <Field label="Monto mínimo" error={errors.minAmount}>
+              <input
+                type="number"
+                value={form.minAmount}
+                onChange={(e) => setForm({ ...form, minAmount: e.target.value })}
+                className={inputClass(!!errors.minAmount)}
+                disabled={submitting}
+              />
+            </Field>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Monto Mínimo <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="number"
-                  value={form.minAmount}
-                  onChange={(e) =>
-                    setForm({ ...form, minAmount: e.target.value })
-                  }
-                  className={`w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 ${
-                    errors.minAmount
-                      ? "border-red-500 bg-red-50"
-                      : "border-gray-300"
-                  }`}
-                  disabled={submitting}
-                />
-                {errors.minAmount && (
-                  <p className="text-red-500 text-sm mt-1">
-                    {errors.minAmount}
-                  </p>
-                )}
-              </div>
+            <Field label="Monto máximo" error={errors.maxAmount}>
+              <input
+                type="number"
+                value={form.maxAmount}
+                onChange={(e) => setForm({ ...form, maxAmount: e.target.value })}
+                className={inputClass(!!errors.maxAmount)}
+                disabled={submitting}
+              />
+            </Field>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Monto Máximo <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="number"
-                  value={form.maxAmount}
-                  onChange={(e) =>
-                    setForm({ ...form, maxAmount: e.target.value })
-                  }
-                  className={`w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 ${
-                    errors.maxAmount
-                      ? "border-red-500 bg-red-50"
-                      : "border-gray-300"
-                  }`}
-                  disabled={submitting}
-                />
-                {errors.maxAmount && (
-                  <p className="text-red-500 text-sm mt-1">
-                    {errors.maxAmount}
-                  </p>
-                )}
-              </div>
+            <Field label="Tasa anual (%)" error={errors.annualInterestRate}>
+              <input
+                type="number"
+                step="0.01"
+                value={form.annualInterestRate}
+                onChange={(e) =>
+                  setForm({ ...form, annualInterestRate: e.target.value })
+                }
+                className={inputClass(!!errors.annualInterestRate)}
+                disabled={submitting}
+              />
+            </Field>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Tasa de Interés Anual (%) <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={form.annualInterestRate}
-                  onChange={(e) =>
-                    setForm({ ...form, annualInterestRate: e.target.value })
-                  }
-                  className={`w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 ${
-                    errors.annualInterestRate
-                      ? "border-red-500 bg-red-50"
-                      : "border-gray-300"
-                  }`}
-                  disabled={submitting}
-                />
-                {errors.annualInterestRate && (
-                  <p className="text-red-500 text-sm mt-1">
-                    {errors.annualInterestRate}
-                  </p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Sistemas de Amortización
-                </label>
-                <div className="space-y-2">
-                  {["FRENCH", "GERMAN"].map((system) => (
-                    <label
-                      key={system}
-                      className="flex items-center gap-2 cursor-pointer"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={form.amortizationSystems.includes(system)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setForm({
-                              ...form,
-                              amortizationSystems: [
-                                ...form.amortizationSystems,
-                                system,
-                              ],
-                            });
-                          } else {
-                            setForm({
-                              ...form,
-                              amortizationSystems:
-                                form.amortizationSystems.filter(
-                                  (s: string) => s !== system
-                                ),
-                            });
-                          }
-                        }}
-                        disabled={submitting}
-                      />
-                      <span className="text-sm text-gray-700">{system}</span>
-                    </label>
-                  ))}
-                </div>
+            <div>
+              <p className="mb-2 text-sm font-medium text-slate-300">
+                Sistemas de amortización
+              </p>
+              <div className="space-y-2">
+                {["FRENCH", "GERMAN"].map((system) => (
+                  <label
+                    key={system}
+                    className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-slate-300"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={form.amortizationSystems.includes(system)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setForm({
+                            ...form,
+                            amortizationSystems: [
+                              ...form.amortizationSystems,
+                              system,
+                            ],
+                          });
+                        } else {
+                          setForm({
+                            ...form,
+                            amortizationSystems:
+                              form.amortizationSystems.filter(
+                                (s: string) => s !== system
+                              ),
+                          });
+                        }
+                      }}
+                      disabled={submitting}
+                    />
+                    {system}
+                  </label>
+                ))}
               </div>
             </div>
 
-            <div className="flex gap-2 mt-6">
-              <button
-                onClick={onHideForm}
-                disabled={submitting}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 transition disabled:opacity-50"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={onSubmit}
-                disabled={submitting}
-                className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {submitting ? (
-                  <>
-                    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                    Guardando...
-                  </>
-                ) : (
-                  "Guardar"
-                )}
-              </button>
-            </div>
+            <ModalActions
+              onCancel={onHideForm}
+              onConfirm={onSubmit}
+              confirmText={submitting ? "Guardando..." : "Guardar"}
+            />
           </div>
-        </div>
+        </Modal>
       )}
 
-      {/* Table */}
-      <div className="bg-white rounded-lg shadow-md overflow-hidden">
+      <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-lg">
         {loading ? (
-          <div className="flex items-center justify-center p-8">
-            <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
-          </div>
+          <LoaderBlock text="Cargando tipos de crédito..." />
         ) : creditTypes.length === 0 ? (
-          <div className="p-8 text-center text-gray-600">
-            No hay tipos de crédito registrados
-          </div>
+          <EmptyBlock text="No hay tipos de crédito registrados." />
         ) : (
-          <table className="w-full">
-            <thead className="bg-gray-100 border-b border-gray-200">
-              <tr>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                  Nombre
-                </th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                  Monto Min
-                </th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                  Monto Max
-                </th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                  Tasa %
-                </th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                  Sistemas
-                </th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                  Acciones
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {creditTypes.map((ct: CreditType) => (
-                <tr
-                  key={ct.id}
-                  className="hover:bg-gray-50 transition"
-                >
-                  <td className="px-6 py-4 text-sm text-gray-900">
-                    {ct.name}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-600">
-                    ${ct.minAmount.toLocaleString()}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-600">
-                    ${ct.maxAmount.toLocaleString()}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-600">
-                    {ct.annualInterestRate.toFixed(2)}%
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-600">
-                    {ct.amortizationSystems.join(", ")}
-                  </td>
-                  <td className="px-6 py-4 text-sm space-x-2 flex">
-                    <button
-                      onClick={() => onEdit(ct)}
-                      className="text-blue-600 hover:text-blue-900 font-medium"
-                    >
-                      Editar
-                    </button>
-                    <button
-                      onClick={() => onDelete(ct.id)}
-                      className="text-red-600 hover:text-red-900 font-medium"
-                    >
-                      Eliminar
-                    </button>
-
-                    {deleteConfirmId === ct.id && (
-                      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                        <div className="bg-white rounded-lg shadow-2xl p-6 max-w-sm">
-                          <p className="text-gray-900 mb-6">
-                            ¿Estás seguro de que deseas eliminar este tipo de
-                            crédito?
-                          </p>
-                          <div className="flex gap-3">
-                            <button
-                              onClick={onCancelDelete}
-                              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50"
-                            >
-                              Cancelar
-                            </button>
-                            <button
-                              onClick={() => onConfirmDelete(ct.id)}
-                              className="flex-1 bg-red-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-red-700"
-                            >
-                              Eliminar
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="min-w-[900px] w-full text-sm">
+              <thead>
+                <tr className="border-b border-white/10 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  <th className="px-6 py-4">Nombre</th>
+                  <th className="px-6 py-4">Monto Min</th>
+                  <th className="px-6 py-4">Monto Max</th>
+                  <th className="px-6 py-4">Tasa</th>
+                  <th className="px-6 py-4">Sistemas</th>
+                  <th className="px-6 py-4">Acciones</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {creditTypes.map((ct: CreditType) => (
+                  <tr key={ct.id} className="hover:bg-white/[0.03]">
+                    <td className="px-6 py-4 text-white">{ct.name}</td>
+                    <td className="px-6 py-4 text-slate-300">
+                      ${ct.minAmount.toLocaleString()}
+                    </td>
+                    <td className="px-6 py-4 text-slate-300">
+                      ${ct.maxAmount.toLocaleString()}
+                    </td>
+                    <td className="px-6 py-4 text-slate-300">
+                      {ct.annualInterestRate.toFixed(2)}%
+                    </td>
+                    <td className="px-6 py-4 text-slate-300">
+                      {ct.amortizationSystems.join(", ")}
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex gap-3">
+                        <button
+                          onClick={() => onEdit(ct)}
+                          className="text-blue-300 hover:text-blue-200"
+                        >
+                          Editar
+                        </button>
+                        <button
+                          onClick={() => onDelete(ct.id)}
+                          className="text-rose-300 hover:text-rose-200"
+                        >
+                          Eliminar
+                        </button>
+                      </div>
+
+                      {deleteConfirmId === ct.id && (
+                        <ConfirmModal
+                          text="¿Estás seguro de que deseas eliminar este tipo de crédito?"
+                          onCancel={onCancelDelete}
+                          onConfirm={() => onConfirmDelete(ct.id)}
+                        />
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>
   );
 }
 
-// Charges Section Component
 function ChargesSection({
   creditTypes,
   selectedCreditTypeId,
@@ -1054,249 +952,292 @@ function ChargesSection({
 }: any) {
   return (
     <div className="space-y-4">
-      {/* Credit Type Selector */}
-      <div className="bg-white rounded-lg shadow-md p-6">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Seleccionar Tipo de Crédito
-        </label>
-        <select
-          value={selectedCreditTypeId}
-          onChange={(e) => setSelectedCreditTypeId(e.target.value)}
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-        >
-          <option value="">-- Elige un tipo de crédito --</option>
-          {creditTypes.map((ct: CreditType) => (
-            <option key={ct.id} value={ct.id}>
-              {ct.name}
+      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 backdrop-blur-lg">
+        <Field label="Seleccionar Tipo de Crédito">
+          <select
+            value={selectedCreditTypeId}
+            onChange={(e) => setSelectedCreditTypeId(e.target.value)}
+            className={inputClass(false)}
+          >
+            <option value="" className="bg-slate-900">
+              -- Elige un tipo de crédito --
             </option>
-          ))}
-        </select>
+            {creditTypes.map((ct: CreditType) => (
+              <option key={ct.id} value={ct.id} className="bg-slate-900">
+                {ct.name}
+              </option>
+            ))}
+          </select>
+        </Field>
       </div>
 
       {selectedCreditTypeId && (
         <>
           <button
             onClick={onShowForm}
-            className="bg-blue-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-blue-700 transition"
+            className="rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:from-blue-500 hover:to-indigo-500"
           >
             + Nuevo Cargo
           </button>
 
-          {/* Form Modal */}
           {showForm && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-lg shadow-2xl max-w-md w-full p-6">
-                <h3 className="text-lg font-semibold mb-4">
-                  {form.id ? "Editar" : "Crear"} Cargo
-                </h3>
-
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Nombre <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={form.name}
-                      onChange={(e) =>
-                        setForm({ ...form, name: e.target.value })
-                      }
-                      className={`w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 ${
-                        errors.name
-                          ? "border-red-500 bg-red-50"
-                          : "border-gray-300"
-                      }`}
-                      disabled={submitting}
-                    />
-                    {errors.name && (
-                      <p className="text-red-500 text-sm mt-1">
-                        {errors.name}
-                      </p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Tipo <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      value={form.type}
-                      onChange={(e) =>
-                        setForm({
-                          ...form,
-                          type: e.target.value as "FIXED" | "PERCENTAGE",
-                        })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
-                      disabled={submitting}
-                    >
-                      <option value="FIXED">Fijo</option>
-                      <option value="PERCENTAGE">Porcentaje</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Valor <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={form.value}
-                      onChange={(e) =>
-                        setForm({ ...form, value: e.target.value })
-                      }
-                      className={`w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 ${
-                        errors.value
-                          ? "border-red-500 bg-red-50"
-                          : "border-gray-300"
-                      }`}
-                      disabled={submitting}
-                    />
-                    {errors.value && (
-                      <p className="text-red-500 text-sm mt-1">
-                        {errors.value}
-                      </p>
-                    )}
-                  </div>
-
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={form.mandatory}
-                      onChange={(e) =>
-                        setForm({ ...form, mandatory: e.target.checked })
-                      }
-                      disabled={submitting}
-                    />
-                    <span className="text-sm text-gray-700">
-                      Obligatorio
-                    </span>
-                  </label>
-                </div>
-
-                <div className="flex gap-2 mt-6">
-                  <button
-                    onClick={onHideForm}
+            <Modal title={form.name ? "Editar Cargo" : "Crear Cargo"} onClose={onHideForm}>
+              <div className="space-y-4">
+                <Field label="Nombre" error={errors.name}>
+                  <input
+                    type="text"
+                    value={form.name}
+                    onChange={(e) => setForm({ ...form, name: e.target.value })}
+                    className={inputClass(!!errors.name)}
                     disabled={submitting}
-                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 transition disabled:opacity-50"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    onClick={onSubmit}
+                  />
+                </Field>
+
+                <Field label="Tipo">
+                  <select
+                    value={form.type}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        type: e.target.value as "FIXED" | "PERCENTAGE",
+                      })
+                    }
+                    className={inputClass(false)}
                     disabled={submitting}
-                    className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition disabled:opacity-50 flex items-center justify-center gap-2"
                   >
-                    {submitting ? (
-                      <>
-                        <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                        Guardando...
-                      </>
-                    ) : (
-                      "Guardar"
-                    )}
-                  </button>
-                </div>
+                    <option value="FIXED" className="bg-slate-900">
+                      Fijo
+                    </option>
+                    <option value="PERCENTAGE" className="bg-slate-900">
+                      Porcentaje
+                    </option>
+                  </select>
+                </Field>
+
+                <Field label="Valor" error={errors.value}>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={form.value}
+                    onChange={(e) => setForm({ ...form, value: e.target.value })}
+                    className={inputClass(!!errors.value)}
+                    disabled={submitting}
+                  />
+                </Field>
+
+                <label className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-3 text-sm text-slate-300">
+                  <input
+                    type="checkbox"
+                    checked={form.mandatory}
+                    onChange={(e) =>
+                      setForm({ ...form, mandatory: e.target.checked })
+                    }
+                    disabled={submitting}
+                  />
+                  Obligatorio
+                </label>
+
+                <ModalActions
+                  onCancel={onHideForm}
+                  onConfirm={onSubmit}
+                  confirmText={submitting ? "Guardando..." : "Guardar"}
+                />
               </div>
-            </div>
+            </Modal>
           )}
 
-          {/* Table */}
-          <div className="bg-white rounded-lg shadow-md overflow-hidden">
+          <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-lg">
             {loading ? (
-              <div className="flex items-center justify-center p-8">
-                <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
-              </div>
+              <LoaderBlock text="Cargando cargos..." />
             ) : charges.length === 0 ? (
-              <div className="p-8 text-center text-gray-600">
-                No hay cargos registrados para este tipo de crédito
-              </div>
+              <EmptyBlock text="No hay cargos registrados para este tipo de crédito." />
             ) : (
-              <table className="w-full">
-                <thead className="bg-gray-100 border-b border-gray-200">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                      Nombre
-                    </th>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                      Tipo
-                    </th>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                      Valor
-                    </th>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                      Obligatorio
-                    </th>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                      Acciones
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {charges.map((charge: Charge) => (
-                    <tr key={charge.id} className="hover:bg-gray-50 transition">
-                      <td className="px-6 py-4 text-sm text-gray-900">
-                        {charge.name}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-600">
-                        {charge.type === "FIXED" ? "Fijo" : "Porcentaje"}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-600">
-                        {charge.type === "FIXED"
-                          ? `$${charge.value.toFixed(2)}`
-                          : `${charge.value.toFixed(2)}%`}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-600">
-                        {charge.mandatory ? "Sí" : "No"}
-                      </td>
-                      <td className="px-6 py-4 text-sm space-x-2 flex">
-                        <button
-                          onClick={() => onEdit(charge)}
-                          className="text-blue-600 hover:text-blue-900 font-medium"
-                        >
-                          Editar
-                        </button>
-                        <button
-                          onClick={() => onDelete(charge.id)}
-                          className="text-red-600 hover:text-red-900 font-medium"
-                        >
-                          Eliminar
-                        </button>
-
-                        {deleteConfirmId === charge.id && (
-                          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                            <div className="bg-white rounded-lg shadow-2xl p-6 max-w-sm">
-                              <p className="text-gray-900 mb-6">
-                                ¿Estás seguro de que deseas eliminar este
-                                cargo?
-                              </p>
-                              <div className="flex gap-3">
-                                <button
-                                  onClick={onCancelDelete}
-                                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50"
-                                >
-                                  Cancelar
-                                </button>
-                                <button
-                                  onClick={() => onConfirmDelete(charge.id)}
-                                  className="flex-1 bg-red-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-red-700"
-                                >
-                                  Eliminar
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </td>
+              <div className="overflow-x-auto">
+                <table className="min-w-[760px] w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-white/10 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      <th className="px-6 py-4">Nombre</th>
+                      <th className="px-6 py-4">Tipo</th>
+                      <th className="px-6 py-4">Valor</th>
+                      <th className="px-6 py-4">Obligatorio</th>
+                      <th className="px-6 py-4">Acciones</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {charges.map((charge: Charge) => (
+                      <tr key={charge.id} className="hover:bg-white/[0.03]">
+                        <td className="px-6 py-4 text-white">{charge.name}</td>
+                        <td className="px-6 py-4 text-slate-300">
+                          {charge.type === "FIXED" ? "Fijo" : "Porcentaje"}
+                        </td>
+                        <td className="px-6 py-4 text-slate-300">
+                          {charge.type === "FIXED"
+                            ? `$${charge.value.toFixed(2)}`
+                            : `${charge.value.toFixed(2)}%`}
+                        </td>
+                        <td className="px-6 py-4 text-slate-300">
+                          {charge.mandatory ? "Sí" : "No"}
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex gap-3">
+                            <button
+                              onClick={() => onEdit(charge)}
+                              className="text-blue-300 hover:text-blue-200"
+                            >
+                              Editar
+                            </button>
+                            <button
+                              onClick={() => onDelete(charge.id)}
+                              className="text-rose-300 hover:text-rose-200"
+                            >
+                              Eliminar
+                            </button>
+                          </div>
+
+                          {deleteConfirmId === charge.id && (
+                            <ConfirmModal
+                              text="¿Estás seguro de que deseas eliminar este cargo?"
+                              onCancel={onCancelDelete}
+                              onConfirm={() => onConfirmDelete(charge.id)}
+                            />
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
         </>
       )}
     </div>
   );
+}
+
+function Field({
+  label,
+  children,
+  error,
+}: {
+  label: string;
+  children: React.ReactNode;
+  error?: string;
+}) {
+  return (
+    <div>
+      <label className="mb-1.5 block text-sm font-medium text-slate-300">
+        {label}
+      </label>
+      {children}
+      {error ? <p className="mt-1 text-sm text-rose-400">{error}</p> : null}
+    </div>
+  );
+}
+
+function inputClass(hasError: boolean) {
+  return `w-full rounded-lg border bg-white/5 px-4 py-2.5 text-sm text-white outline-none transition ${
+    hasError
+      ? "border-rose-500/40 bg-rose-500/10 focus:ring-2 focus:ring-rose-500/20"
+      : "border-white/10 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+  }`;
+}
+
+function Modal({
+  title,
+  onClose,
+  children,
+}: {
+  title: string;
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm">
+      <div className="w-full max-w-md rounded-2xl border border-white/10 bg-slate-900 p-6 shadow-2xl">
+        <div className="mb-5 flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-white">{title}</h3>
+          <button
+            onClick={onClose}
+            className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-slate-300 hover:bg-white/10"
+          >
+            ✕
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function ModalActions({
+  onCancel,
+  onConfirm,
+  confirmText,
+}: {
+  onCancel: () => void;
+  onConfirm: () => void;
+  confirmText: string;
+}) {
+  return (
+    <div className="flex gap-3 pt-2">
+      <button
+        onClick={onCancel}
+        className="flex-1 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-slate-200 transition hover:bg-white/10"
+      >
+        Cancelar
+      </button>
+      <button
+        onClick={onConfirm}
+        className="flex-1 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-3 text-sm font-semibold text-white transition hover:from-blue-500 hover:to-indigo-500"
+      >
+        {confirmText}
+      </button>
+    </div>
+  );
+}
+
+function ConfirmModal({
+  text,
+  onCancel,
+  onConfirm,
+}: {
+  text: string;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm">
+      <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-slate-900 p-6 shadow-2xl">
+        <p className="mb-6 text-sm text-slate-200">{text}</p>
+        <div className="flex gap-3">
+          <button
+            onClick={onCancel}
+            className="flex-1 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-slate-200 transition hover:bg-white/10"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={onConfirm}
+            className="flex-1 rounded-xl bg-gradient-to-r from-rose-600 to-red-600 px-4 py-3 text-sm font-semibold text-white transition hover:from-rose-500 hover:to-red-500"
+          >
+            Eliminar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LoaderBlock({ text }: { text: string }) {
+  return (
+    <div className="flex items-center justify-center p-8 text-slate-400">
+      <div className="mr-3 h-8 w-8 animate-spin rounded-full border-4 border-blue-300/20 border-t-blue-400" />
+      {text}
+    </div>
+  );
+}
+
+function EmptyBlock({ text }: { text: string }) {
+  return <div className="p-8 text-center text-slate-400">{text}</div>;
 }
