@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ReactNode, useEffect, useMemo, useState } from "react";
 import {
   getCurrentUser,
@@ -20,6 +20,7 @@ type NavItem = {
   roles?: Array<User["role"]>;
   icon: string;
   description: string;
+  group: "general" | "admin";
 };
 
 const navItems: NavItem[] = [
@@ -29,6 +30,7 @@ const navItems: NavItem[] = [
     roles: ["ADMIN", "CLIENT"],
     icon: "💳",
     description: "Métodos Francés y Alemán",
+    group: "general",
   },
   {
     label: "Simulador Inversión",
@@ -36,6 +38,31 @@ const navItems: NavItem[] = [
     roles: ["ADMIN", "CLIENT"],
     icon: "📈",
     description: "Rendimiento y proyección",
+    group: "general",
+  },
+  {
+    label: "Institución",
+    href: "/admin?section=institution",
+    roles: ["ADMIN"],
+    icon: "🏢",
+    description: "Nombre, RUC y logo",
+    group: "admin",
+  },
+  {
+    label: "Tipos de Crédito",
+    href: "/admin?section=creditTypes",
+    roles: ["ADMIN"],
+    icon: "🧾",
+    description: "Montos, tasas y sistemas",
+    group: "admin",
+  },
+  {
+    label: "Cargos Indirectos",
+    href: "/admin?section=charges",
+    roles: ["ADMIN"],
+    icon: "💰",
+    description: "Cobros por tipo de crédito",
+    group: "admin",
   },
   {
     label: "Admin Inversiones",
@@ -43,18 +70,33 @@ const navItems: NavItem[] = [
     roles: ["ADMIN"],
     icon: "⚙️",
     description: "Configurar productos",
+    group: "admin",
   },
 ];
+
+function getAdminSectionTitle(section: string | null) {
+  if (section === "creditTypes") return "Tipos de Crédito";
+  if (section === "charges") return "Cargos Indirectos";
+  return "Institución";
+}
+
+function getAdminSectionDescription(section: string | null) {
+  if (section === "creditTypes") return "Montos, tasas y sistemas";
+  if (section === "charges") return "Cobros y reglas por producto";
+  return "Nombre, RUC y logo institucional";
+}
 
 export default function AppShellClient({ children }: AppShellClientProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [user, setUser] = useState<User | null>(null);
 
   const isLoginPage = pathname === "/login";
+  const adminSection = searchParams.get("section");
 
   useEffect(() => {
     setMounted(true);
@@ -78,19 +120,61 @@ export default function AppShellClient({ children }: AppShellClientProps) {
     });
   }, [user]);
 
+  const generalItems = visibleNavItems.filter((item) => item.group === "general");
+  const adminItems = visibleNavItems.filter((item) => item.group === "admin");
+
   const currentPageTitle = useMemo(() => {
-    const match = navItems.find((item) => pathname.startsWith(item.href));
-    return match?.label ?? "SISCONTA";
-  }, [pathname]);
+    if (pathname === "/admin") {
+      return getAdminSectionTitle(adminSection);
+    }
+
+    if (pathname === "/admin/investments") {
+      return "Admin Inversiones";
+    }
+
+    if (pathname === "/simulate/credit") {
+      return "Simulador Crédito";
+    }
+
+    if (pathname === "/simulate/investment") {
+      return "Simulador Inversión";
+    }
+
+    return "SISCONTA";
+  }, [pathname, adminSection]);
 
   const currentPageDescription = useMemo(() => {
-    const match = navItems.find((item) => pathname.startsWith(item.href));
-    return match?.description ?? "Sistema financiero";
-  }, [pathname]);
+    if (pathname === "/admin") {
+      return getAdminSectionDescription(adminSection);
+    }
+
+    if (pathname === "/admin/investments") {
+      return "Configurar productos de inversión";
+    }
+
+    if (pathname === "/simulate/credit") {
+      return "Métodos Francés y Alemán";
+    }
+
+    if (pathname === "/simulate/investment") {
+      return "Rendimiento y proyección";
+    }
+
+    return "Sistema financiero";
+  }, [pathname, adminSection]);
 
   function handleLogout() {
     logout();
     router.push("/login");
+  }
+
+  function isItemActive(item: NavItem) {
+    if (item.href.startsWith("/admin?section=")) {
+      const itemSection = item.href.split("section=")[1];
+      return pathname === "/admin" && adminSection === itemSection;
+    }
+
+    return pathname === item.href || pathname.startsWith(`${item.href}/`);
   }
 
   if (isLoginPage) {
@@ -99,7 +183,7 @@ export default function AppShellClient({ children }: AppShellClientProps) {
 
   if (!mounted) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 flex items-center justify-center px-4">
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 px-4">
         <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-6 py-4 text-slate-300 shadow-xl backdrop-blur-xl">
           Cargando interfaz...
         </div>
@@ -109,7 +193,6 @@ export default function AppShellClient({ children }: AppShellClientProps) {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-white">
-      {/* Overlay mobile */}
       {sidebarOpen ? (
         <button
           type="button"
@@ -119,14 +202,12 @@ export default function AppShellClient({ children }: AppShellClientProps) {
         />
       ) : null}
 
-      {/* Sidebar */}
       <aside
         className={`fixed inset-y-0 left-0 z-50 w-80 transform border-r border-white/10 bg-slate-950/85 backdrop-blur-2xl transition-transform duration-300 lg:translate-x-0 ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
         <div className="flex h-full flex-col">
-          {/* Brand */}
           <div className="border-b border-white/10 px-5 py-5">
             <div className="flex items-start justify-between gap-4">
               <div>
@@ -137,7 +218,7 @@ export default function AppShellClient({ children }: AppShellClientProps) {
                   Panel Financiero
                 </h1>
                 <p className="mt-2 text-sm text-slate-400">
-                  Créditos, inversiones y gestión administrativa
+                  Créditos, inversiones y configuración
                 </p>
               </div>
 
@@ -151,7 +232,6 @@ export default function AppShellClient({ children }: AppShellClientProps) {
             </div>
           </div>
 
-          {/* User card */}
           <div className="px-5 py-5">
             <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.07] to-white/[0.02] p-4 shadow-lg shadow-black/20">
               <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">
@@ -175,18 +255,16 @@ export default function AppShellClient({ children }: AppShellClientProps) {
             </div>
           </div>
 
-          {/* Navigation */}
           <div className="flex-1 overflow-y-auto px-4 pb-4">
             <div className="mb-3 px-2">
               <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
-                Navegación
+                Simuladores
               </p>
             </div>
 
             <nav className="space-y-2">
-              {visibleNavItems.map((item) => {
-                const active =
-                  pathname === item.href || pathname.startsWith(`${item.href}/`);
+              {generalItems.map((item) => {
+                const active = isItemActive(item);
 
                 return (
                   <Link
@@ -231,9 +309,66 @@ export default function AppShellClient({ children }: AppShellClientProps) {
                 );
               })}
             </nav>
+
+            {adminItems.length > 0 ? (
+              <>
+                <div className="mb-3 mt-8 px-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
+                    Administración
+                  </p>
+                </div>
+
+                <nav className="space-y-2">
+                  {adminItems.map((item) => {
+                    const active = isItemActive(item);
+
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        onClick={() => setSidebarOpen(false)}
+                        className={`group block rounded-2xl border px-4 py-3 transition-all ${
+                          active
+                            ? "border-blue-400/30 bg-gradient-to-r from-blue-500/20 to-indigo-500/10 shadow-lg shadow-blue-500/10"
+                            : "border-transparent bg-white/[0.02] hover:border-white/10 hover:bg-white/[0.05]"
+                        }`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div
+                            className={`mt-0.5 flex h-10 w-10 items-center justify-center rounded-xl text-lg transition ${
+                              active
+                                ? "bg-blue-500/20 text-blue-300"
+                                : "bg-white/5 text-slate-300 group-hover:bg-white/10"
+                            }`}
+                          >
+                            {item.icon}
+                          </div>
+
+                          <div className="min-w-0">
+                            <p
+                              className={`text-sm font-semibold ${
+                                active ? "text-white" : "text-slate-200"
+                              }`}
+                            >
+                              {item.label}
+                            </p>
+                            <p
+                              className={`mt-1 text-xs ${
+                                active ? "text-slate-300" : "text-slate-500"
+                              }`}
+                            >
+                              {item.description}
+                            </p>
+                          </div>
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </nav>
+              </>
+            ) : null}
           </div>
 
-          {/* Footer actions */}
           <div className="border-t border-white/10 px-5 py-5">
             <button
               type="button"
@@ -246,9 +381,7 @@ export default function AppShellClient({ children }: AppShellClientProps) {
         </div>
       </aside>
 
-      {/* Main area */}
       <div className="lg:pl-80">
-        {/* Topbar */}
         <header className="sticky top-0 z-30 border-b border-white/10 bg-slate-950/55 backdrop-blur-2xl">
           <div className="flex h-20 items-center justify-between px-4 sm:px-6 lg:px-8">
             <div className="flex min-w-0 items-center gap-3">
@@ -288,7 +421,6 @@ export default function AppShellClient({ children }: AppShellClientProps) {
           </div>
         </header>
 
-        {/* Content */}
         <main className="min-h-[calc(100vh-5rem)] overflow-x-hidden px-4 py-6 sm:px-6 lg:px-8">
           {children}
         </main>
