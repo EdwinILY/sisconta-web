@@ -1,22 +1,47 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { login } from "@/lib/api/auth";
 import { ApiErrorInfo } from "@/lib/api/client";
 
 export default function LoginPage() {
   const router = useRouter();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+
   const [loading, setLoading] = useState(false);
+
   const [error, setError] = useState<string>("");
   const [success, setSuccess] = useState<string>("");
+
   const [emailError, setEmailError] = useState("");
   const [passwordError, setPasswordError] = useState("");
 
+  useEffect(() => {
+    if (!error) return;
+
+    const timeout = setTimeout(() => {
+      setError("");
+    }, 3000);
+
+    return () => clearTimeout(timeout);
+  }, [error]);
+
+  useEffect(() => {
+    if (!success) return;
+
+    const timeout = setTimeout(() => {
+      setSuccess("");
+    }, 3000);
+
+    return () => clearTimeout(timeout);
+  }, [success]);
+
   const validateForm = (): boolean => {
     let isValid = true;
+
     setEmailError("");
     setPasswordError("");
 
@@ -49,9 +74,11 @@ export default function LoginPage() {
 
       setTimeout(() => {
         if (response.user.role === "ADMIN") {
-          router.push("/admin");
+          router.push("/admin/investments");
         } else if (response.user.role === "CLIENT") {
           router.push("/simulate/credit");
+        } else {
+          router.push("/");
         }
       }, 500);
     } catch (err) {
@@ -62,47 +89,40 @@ export default function LoginPage() {
     }
   };
 
-  // Auto-hide alerts
-  if (error) {
-    setTimeout(() => setError(""), 3000);
-  }
-  if (success) {
-    setTimeout(() => setSuccess(""), 3000);
-  }
-
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-blue-100 px-4">
-      <div className="w-full max-w-md bg-white rounded-lg shadow-lg p-8">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-blue-900">SISCONTA</h1>
-          <p className="text-gray-600 text-sm mt-2">
+    <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-slate-100 via-slate-50 to-teal-50 px-4">
+      <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-8 shadow-xl shadow-slate-200/60">
+        <div className="mb-8 text-center">
+          <p className="text-xs font-semibold uppercase tracking-[0.25em] text-teal-700">
+            SISCONTA
+          </p>
+          <h1 className="mt-2 text-3xl font-bold text-slate-900">
+            Iniciar sesión
+          </h1>
+          <p className="mt-2 text-sm text-slate-600">
             Sistema Financiero Integral
           </p>
         </div>
 
-        {/* Alerts */}
         {error && (
-          <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-red-700 text-sm font-medium">{error}</p>
+          <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3">
+            <p className="text-sm font-medium text-rose-700">{error}</p>
           </div>
         )}
 
         {success && (
-          <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg">
-            <p className="text-green-700 text-sm font-medium">{success}</p>
+          <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+            <p className="text-sm font-medium text-emerald-700">{success}</p>
           </div>
         )}
 
-        {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Email */}
           <div>
             <label
               htmlFor="email"
-              className="block text-sm font-medium text-gray-700 mb-1"
+              className="mb-1 block text-sm font-medium text-slate-700"
             >
-              Email <span className="text-red-500">*</span>
+              Email <span className="text-rose-500">*</span>
             </label>
             <input
               id="email"
@@ -111,24 +131,23 @@ export default function LoginPage() {
               onChange={(e) => setEmail(e.target.value)}
               placeholder="tu@email.com"
               disabled={loading}
-              className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition ${
+              className={`w-full rounded-xl border px-4 py-2.5 outline-none transition ${
                 emailError
-                  ? "border-red-500 bg-red-50"
-                  : "border-gray-300 bg-gray-50"
-              } ${loading ? "opacity-50 cursor-not-allowed" : ""}`}
+                  ? "border-rose-400 bg-rose-50 focus:ring-2 focus:ring-rose-200"
+                  : "border-slate-300 bg-slate-50 focus:border-teal-500 focus:ring-2 focus:ring-teal-200"
+              } ${loading ? "cursor-not-allowed opacity-50" : ""}`}
             />
             {emailError && (
-              <p className="text-red-500 text-sm mt-1">{emailError}</p>
+              <p className="mt-1 text-sm text-rose-500">{emailError}</p>
             )}
           </div>
 
-          {/* Password */}
           <div>
             <label
               htmlFor="password"
-              className="block text-sm font-medium text-gray-700 mb-1"
+              className="mb-1 block text-sm font-medium text-slate-700"
             >
-              Contraseña <span className="text-red-500">*</span>
+              Contraseña <span className="text-rose-500">*</span>
             </label>
             <input
               id="password"
@@ -137,26 +156,25 @@ export default function LoginPage() {
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
               disabled={loading}
-              className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition ${
+              className={`w-full rounded-xl border px-4 py-2.5 outline-none transition ${
                 passwordError
-                  ? "border-red-500 bg-red-50"
-                  : "border-gray-300 bg-gray-50"
-              } ${loading ? "opacity-50 cursor-not-allowed" : ""}`}
+                  ? "border-rose-400 bg-rose-50 focus:ring-2 focus:ring-rose-200"
+                  : "border-slate-300 bg-slate-50 focus:border-teal-500 focus:ring-2 focus:ring-teal-200"
+              } ${loading ? "cursor-not-allowed opacity-50" : ""}`}
             />
             {passwordError && (
-              <p className="text-red-500 text-sm mt-1">{passwordError}</p>
+              <p className="mt-1 text-sm text-rose-500">{passwordError}</p>
             )}
           </div>
 
-          {/* Submit Button */}
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-blue-600 text-white py-2 rounded-lg font-medium hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {loading ? (
               <>
-                <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
                 Iniciando sesión...
               </>
             ) : (
@@ -165,8 +183,7 @@ export default function LoginPage() {
           </button>
         </form>
 
-        {/* Footer */}
-        <p className="text-center text-gray-600 text-sm mt-6">
+        <p className="mt-6 text-center text-sm text-slate-500">
           ¿No tienes cuenta? Contacta con el administrador
         </p>
       </div>
