@@ -142,245 +142,331 @@ export default function InvestmentAdmin() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-        <header className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-          <p className="text-sm font-semibold tracking-widest text-slate-700">
-            SISCONTA · DEV 3
-          </p>
-          <h1 className="mt-2 text-3xl font-bold text-slate-900">
-            Administración de productos de inversión
-          </h1>
-          <p className="mt-2 text-sm text-slate-600">
-            Configura montos, plazos, tasa anual y la bandera de fuera de margen.
-          </p>
+    <div className="w-full">
+      <div className="overflow-hidden rounded-3xl bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-white shadow-xl">
+        <header className="relative overflow-hidden border-b border-white/5">
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-violet-500/10 via-transparent to-transparent" />
+          <div className="relative px-6 py-10 text-center sm:px-8 lg:px-10">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-[0.25em] text-violet-400">
+              SISCONTA · ADMIN
+            </p>
+            <h1 className="text-3xl font-bold tracking-tight sm:text-4xl xl:text-5xl">
+              <span className="bg-gradient-to-r from-white via-violet-200 to-indigo-300 bg-clip-text text-transparent">
+                Productos de Inversión
+              </span>
+            </h1>
+            <p className="mx-auto mt-4 max-w-2xl text-sm text-slate-400 sm:text-base">
+              Configura montos, plazos, tasa anual, capitalización y reglas de
+              simulación fuera de margen.
+            </p>
+          </div>
         </header>
 
         {errorMessage ? (
-          <div className="mt-4 rounded-xl border border-rose-300 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-            {errorMessage}
+          <div className="px-4 pt-4 sm:px-6 lg:px-8">
+            <div className="rounded-2xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-300">
+              {errorMessage}
+            </div>
           </div>
         ) : null}
 
         {successMessage ? (
-          <div className="mt-4 rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-            {successMessage}
+          <div className="px-4 pt-4 sm:px-6 lg:px-8">
+            <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
+              {successMessage}
+            </div>
           </div>
         ) : null}
 
-        <section className="mt-8 grid gap-6 lg:grid-cols-2">
-          <article className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 className="text-xl font-semibold text-slate-900">
-              {editingId ? "Editar producto" : "Crear producto"}
-            </h2>
+        <main className="px-4 py-6 sm:px-6 lg:px-8">
+          <div className="grid gap-6 xl:grid-cols-[430px_minmax(0,1fr)]">
+            {/* Formulario */}
+            <article className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 backdrop-blur-lg xl:sticky xl:top-6 xl:self-start">
+              <h2 className="text-lg font-semibold text-white">
+                {editingId ? "Editar producto" : "Crear producto"}
+              </h2>
 
-            <form onSubmit={handleSubmit} className="mt-5 grid gap-4 sm:grid-cols-2">
-              <label className="space-y-2 text-sm font-medium text-slate-700 sm:col-span-2">
-                Nombre
-                <input
-                  value={form.name}
-                  onChange={(e) =>
-                    setForm((prev) => ({ ...prev, name: e.target.value }))
-                  }
-                  required
-                  className="w-full rounded-xl border border-slate-300 px-3 py-2"
-                />
-              </label>
+              <form onSubmit={handleSubmit} className="mt-5 space-y-4">
+                <label className="block">
+                  <span className="mb-1.5 block text-sm font-medium text-slate-300">
+                    Nombre
+                  </span>
+                  <input
+                    value={form.name}
+                    onChange={(e) =>
+                      setForm((prev) => ({ ...prev, name: e.target.value }))
+                    }
+                    required
+                    className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20"
+                  />
+                </label>
 
-              <label className="space-y-2 text-sm font-medium text-slate-700 sm:col-span-2">
-                Propósito
-                <input
-                  value={form.purpose}
-                  onChange={(e) =>
-                    setForm((prev) => ({ ...prev, purpose: e.target.value }))
-                  }
-                  className="w-full rounded-xl border border-slate-300 px-3 py-2"
-                />
-              </label>
+                <label className="block">
+                  <span className="mb-1.5 block text-sm font-medium text-slate-300">
+                    Propósito
+                  </span>
+                  <input
+                    value={form.purpose}
+                    onChange={(e) =>
+                      setForm((prev) => ({ ...prev, purpose: e.target.value }))
+                    }
+                    className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20"
+                  />
+                </label>
 
-              <label className="space-y-2 text-sm font-medium text-slate-700">
-                Monto mínimo
-                <input
-                  type="number"
-                  value={form.minAmount}
-                  onChange={(e) =>
-                    setForm((prev) => ({ ...prev, minAmount: e.target.value }))
-                  }
-                  required
-                  className="w-full rounded-xl border border-slate-300 px-3 py-2"
-                />
-              </label>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <label className="block">
+                    <span className="mb-1.5 block text-sm font-medium text-slate-300">
+                      Monto mínimo
+                    </span>
+                    <input
+                      type="number"
+                      value={form.minAmount}
+                      onChange={(e) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          minAmount: e.target.value,
+                        }))
+                      }
+                      required
+                      className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20"
+                    />
+                  </label>
 
-              <label className="space-y-2 text-sm font-medium text-slate-700">
-                Monto máximo
-                <input
-                  type="number"
-                  value={form.maxAmount}
-                  onChange={(e) =>
-                    setForm((prev) => ({ ...prev, maxAmount: e.target.value }))
-                  }
-                  required
-                  className="w-full rounded-xl border border-slate-300 px-3 py-2"
-                />
-              </label>
+                  <label className="block">
+                    <span className="mb-1.5 block text-sm font-medium text-slate-300">
+                      Monto máximo
+                    </span>
+                    <input
+                      type="number"
+                      value={form.maxAmount}
+                      onChange={(e) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          maxAmount: e.target.value,
+                        }))
+                      }
+                      required
+                      className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20"
+                    />
+                  </label>
+                </div>
 
-              <label className="space-y-2 text-sm font-medium text-slate-700">
-                Plazo mínimo
-                <input
-                  type="number"
-                  value={form.minTermMonths}
-                  onChange={(e) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      minTermMonths: e.target.value,
-                    }))
-                  }
-                  required
-                  className="w-full rounded-xl border border-slate-300 px-3 py-2"
-                />
-              </label>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <label className="block">
+                    <span className="mb-1.5 block text-sm font-medium text-slate-300">
+                      Plazo mínimo
+                    </span>
+                    <input
+                      type="number"
+                      value={form.minTermMonths}
+                      onChange={(e) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          minTermMonths: e.target.value,
+                        }))
+                      }
+                      required
+                      className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20"
+                    />
+                  </label>
 
-              <label className="space-y-2 text-sm font-medium text-slate-700">
-                Plazo máximo
-                <input
-                  type="number"
-                  value={form.maxTermMonths}
-                  onChange={(e) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      maxTermMonths: e.target.value,
-                    }))
-                  }
-                  required
-                  className="w-full rounded-xl border border-slate-300 px-3 py-2"
-                />
-              </label>
+                  <label className="block">
+                    <span className="mb-1.5 block text-sm font-medium text-slate-300">
+                      Plazo máximo
+                    </span>
+                    <input
+                      type="number"
+                      value={form.maxTermMonths}
+                      onChange={(e) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          maxTermMonths: e.target.value,
+                        }))
+                      }
+                      required
+                      className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20"
+                    />
+                  </label>
+                </div>
 
-              <label className="space-y-2 text-sm font-medium text-slate-700">
-                Tasa anual (%)
-                <input
-                  type="number"
-                  step="0.01"
-                  value={form.annualRate}
-                  onChange={(e) =>
-                    setForm((prev) => ({ ...prev, annualRate: e.target.value }))
-                  }
-                  required
-                  className="w-full rounded-xl border border-slate-300 px-3 py-2"
-                />
-              </label>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <label className="block">
+                    <span className="mb-1.5 block text-sm font-medium text-slate-300">
+                      Tasa anual (%)
+                    </span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={form.annualRate}
+                      onChange={(e) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          annualRate: e.target.value,
+                        }))
+                      }
+                      required
+                      className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20"
+                    />
+                  </label>
 
-              <label className="space-y-2 text-sm font-medium text-slate-700">
-                Capitalización
-                <select
-                  value={form.capitalizationFreq}
-                  onChange={(e) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      capitalizationFreq:
-                        e.target.value as CapitalizationFrequency,
-                    }))
-                  }
-                  className="w-full rounded-xl border border-slate-300 px-3 py-2"
-                >
-                  <option value="MONTHLY">MONTHLY</option>
-                  <option value="QUARTERLY">QUARTERLY</option>
-                  <option value="SEMIANNUAL">SEMIANNUAL</option>
-                  <option value="ANNUAL">ANNUAL</option>
-                </select>
-              </label>
+                  <label className="block">
+                    <span className="mb-1.5 block text-sm font-medium text-slate-300">
+                      Capitalización
+                    </span>
+                    <select
+                      value={form.capitalizationFreq}
+                      onChange={(e) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          capitalizationFreq:
+                            e.target.value as CapitalizationFrequency,
+                        }))
+                      }
+                      className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20"
+                    >
+                      <option value="MONTHLY" className="bg-slate-900">
+                        MONTHLY
+                      </option>
+                      <option value="QUARTERLY" className="bg-slate-900">
+                        QUARTERLY
+                      </option>
+                      <option value="SEMIANNUAL" className="bg-slate-900">
+                        SEMIANNUAL
+                      </option>
+                      <option value="ANNUAL" className="bg-slate-900">
+                        ANNUAL
+                      </option>
+                    </select>
+                  </label>
+                </div>
 
-              <label className="sm:col-span-2 flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-3 text-sm text-slate-700">
-                <input
-                  type="checkbox"
-                  checked={form.allowOutOfMargin}
-                  onChange={(e) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      allowOutOfMargin: e.target.checked,
-                    }))
-                  }
-                />
-                Permitir simulaciones fuera del margen configurado
-              </label>
+                <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-slate-300">
+                  <input
+                    type="checkbox"
+                    checked={form.allowOutOfMargin}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        allowOutOfMargin: e.target.checked,
+                      }))
+                    }
+                    className="h-4 w-4 rounded border-white/20 bg-white/5"
+                  />
+                  Permitir simulaciones fuera del margen configurado
+                </label>
 
-              <div className="sm:col-span-2 flex gap-3">
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
-                >
-                  {editingId ? "Actualizar" : "Crear"}
-                </button>
-
-                {editingId ? (
+                <div className="flex flex-wrap gap-3 pt-2">
                   <button
-                    type="button"
-                    onClick={resetForm}
-                    className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700"
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-violet-500/20 transition hover:from-violet-500 hover:to-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    Cancelar
+                    {isSubmitting
+                      ? editingId
+                        ? "Actualizando..."
+                        : "Creando..."
+                      : editingId
+                      ? "Actualizar"
+                      : "Crear"}
                   </button>
-                ) : null}
-              </div>
-            </form>
-          </article>
 
-          <article className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 className="text-xl font-semibold text-slate-900">
-              Productos configurados
-            </h2>
+                  {editingId ? (
+                    <button
+                      type="button"
+                      onClick={resetForm}
+                      className="rounded-xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-slate-200 transition hover:bg-white/10"
+                    >
+                      Cancelar
+                    </button>
+                  ) : null}
+                </div>
+              </form>
+            </article>
 
-            {isLoading ? (
-              <div className="mt-4 text-sm text-slate-500">
-                Cargando productos...
+            {/* Lista */}
+            <section className="space-y-6">
+              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 backdrop-blur-lg">
+                <h2 className="text-lg font-semibold text-white">
+                  Productos configurados
+                </h2>
+                <p className="mt-2 text-sm text-slate-400">
+                  Administra las opciones disponibles para el simulador de
+                  inversión.
+                </p>
               </div>
-            ) : (
-              <div className="mt-4 space-y-3">
-                {products.map((product) => (
-                  <div
-                    key={product.id}
-                    className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-semibold text-slate-900">
-                          {product.name}
-                        </p>
-                        <p className="text-xs text-slate-600">
-                          {product.purpose}
-                        </p>
-                        <p className="mt-1 text-xs text-slate-600">
-                          {formatCurrency(product.minAmount)} -{" "}
-                          {formatCurrency(product.maxAmount)}
-                        </p>
-                        <p className="text-xs text-slate-600">
-                          {product.minTermMonths} - {product.maxTermMonths} meses
-                        </p>
-                        <p className="text-xs text-slate-600">
-                          Tasa anual: {product.annualRate}%
-                        </p>
-                        <p className="text-xs text-slate-600">
-                          Fuera de margen:{" "}
-                          {product.allowOutOfMargin ? "Sí" : "No"}
-                        </p>
+
+              {isLoading ? (
+                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-8 text-center text-slate-400 backdrop-blur-lg">
+                  Cargando productos...
+                </div>
+              ) : (
+                <div className="grid gap-4 lg:grid-cols-2">
+                  {products.map((product) => (
+                    <div
+                      key={product.id}
+                      className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 backdrop-blur-lg transition hover:border-white/15 hover:bg-white/[0.05]"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-base font-semibold text-white">
+                            {product.name}
+                          </p>
+                          <p className="mt-1 text-sm text-slate-400">
+                            {product.purpose || "Sin propósito definido"}
+                          </p>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => loadToEdit(product)}
+                          className="rounded-lg border border-violet-400/20 bg-violet-500/10 px-3 py-1.5 text-xs font-semibold text-violet-300 transition hover:bg-violet-500/20"
+                        >
+                          Editar
+                        </button>
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={() => loadToEdit(product)}
-                        className="rounded-lg border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700"
-                      >
-                        Editar
-                      </button>
+                      <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
+                        <MiniInfo
+                          label="Monto"
+                          value={`${formatCurrency(product.minAmount)} - ${formatCurrency(product.maxAmount)}`}
+                        />
+                        <MiniInfo
+                          label="Plazo"
+                          value={`${product.minTermMonths} - ${product.maxTermMonths} meses`}
+                        />
+                        <MiniInfo
+                          label="Tasa anual"
+                          value={`${product.annualRate}%`}
+                        />
+                        <MiniInfo
+                          label="Capitalización"
+                          value={product.capitalizationFreq}
+                        />
+                        <MiniInfo
+                          label="Fuera de margen"
+                          value={product.allowOutOfMargin ? "Sí" : "No"}
+                        />
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </article>
-        </section>
+                  ))}
+                </div>
+              )}
+            </section>
+          </div>
+        </main>
       </div>
+    </div>
+  );
+}
+
+function MiniInfo({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/[0.02] px-3 py-3">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+        {label}
+      </p>
+      <p className="mt-1 text-sm font-medium text-white">{value}</p>
     </div>
   );
 }
