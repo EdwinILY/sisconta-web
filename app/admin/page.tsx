@@ -156,6 +156,9 @@ export default function AdminPage() {
     try {
       const data = await getInstitution();
       setInstitution(data);
+      setInstitutionName(data.name || "");
+      setInstitutionRuc(data.ruc || "");
+      setInstitutionContact(data.contact || "");
       let logoPath = (data as any).logo || (data as any).logoUrl;
       if (logoPath) {
         if (!logoPath.startsWith("http") && !logoPath.startsWith("data:")) {
@@ -392,19 +395,26 @@ export default function AdminPage() {
     setChargeSubmitting(true);
 
     try {
-      const data = {
-        name: chargeForm.name,
-        type: chargeForm.type,
-        value: parseFloat(chargeForm.value),
-        mandatory: chargeForm.mandatory,
-        creditTypeId: selectedCreditTypeId,
-      };
-
       if (editingChargeId) {
-        await updateCharge(editingChargeId, data);
+        // Al actualizar, NO enviar creditTypeId (el backend lo rechaza)
+        const updateData = {
+          name: chargeForm.name,
+          type: chargeForm.type,
+          value: parseFloat(chargeForm.value),
+          mandatory: chargeForm.mandatory,
+        };
+        await updateCharge(editingChargeId, updateData);
         setAlertSuccess("Cargo actualizado correctamente");
       } else {
-        await createCharge(data);
+        // Al crear, incluir creditTypeId
+        const createData = {
+          name: chargeForm.name,
+          type: chargeForm.type,
+          value: parseFloat(chargeForm.value),
+          mandatory: chargeForm.mandatory,
+          creditTypeId: selectedCreditTypeId,
+        };
+        await createCharge(createData);
         setAlertSuccess("Cargo creado correctamente");
       }
 

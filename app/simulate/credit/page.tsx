@@ -18,6 +18,7 @@ export default function CreditSimulatorPage() {
   const [creditTypes, setCreditTypes] = useState<CreditType[]>([]);
   const [selectedCreditType, setSelectedCreditType] = useState<CreditType | null>(null);
   const [dbCharges, setDbCharges] = useState<Charge[]>([]);
+  const [enabledOptionalChargeIds, setEnabledOptionalChargeIds] = useState<Set<string>>(new Set());
   const [institution, setInstitution] = useState<Institution | null>(null);
   const [companyInfo, setCompanyInfo] = useState<CompanyInfo | undefined>(undefined);
   const [dataLoading, setDataLoading] = useState(true);
@@ -67,16 +68,32 @@ export default function CreditSimulatorPage() {
 
         // Construir CompanyInfo para el PDF
         if (inst) {
-          let logoFullUrl: string | undefined = undefined;
+          let logoDataUrl: string | undefined = undefined;
           const rawLogo = inst.logoUrl || inst.logo;
           if (rawLogo) {
-            let path = rawLogo;
-            if (!path.startsWith("http") && !path.startsWith("data:")) {
-              path = path.replace(/\\/g, "/");
+            let imgUrl: string;
+            if (!rawLogo.startsWith("http") && !rawLogo.startsWith("data:")) {
+              let path = rawLogo.replace(/\\/g, "/");
               if (!path.startsWith("/")) path = "/" + path;
-              logoFullUrl = `${baseURL}${path}`;
+              imgUrl = `${baseURL}${path}`;
             } else {
-              logoFullUrl = path;
+              imgUrl = rawLogo;
+            }
+
+            // Convertir a base64 para que @react-pdf/renderer lo pueda renderizar
+            try {
+              const imgResponse = await fetch(imgUrl);
+              if (imgResponse.ok) {
+                const blob = await imgResponse.blob();
+                logoDataUrl = await new Promise<string>((resolve) => {
+                  const reader = new FileReader();
+                  reader.onloadend = () => resolve(reader.result as string);
+                  reader.readAsDataURL(blob);
+                });
+              }
+            } catch {
+              // Si falla, se genera el PDF sin logo
+              console.warn("No se pudo cargar el logo para el PDF");
             }
           }
 
@@ -85,7 +102,7 @@ export default function CreditSimulatorPage() {
               name: inst.name,
               ruc: inst.ruc,
               contact: inst.contact,
-              logoUrl: logoFullUrl,
+              logoUrl: logoDataUrl,
             })
           );
         }
@@ -103,6 +120,9 @@ export default function CreditSimulatorPage() {
           try {
             const charges = await getChargesByCreditType(first.id);
             setDbCharges(charges);
+            // Activar todos los opcionales por defecto
+            const optIds = new Set(charges.filter(c => !c.mandatory).map(c => c.id));
+            setEnabledOptionalChargeIds(optIds);
           } catch {
             setDbCharges([]);
           }
@@ -149,6 +169,9 @@ export default function CreditSimulatorPage() {
     try {
       const charges = await getChargesByCreditType(found.id);
       setDbCharges(charges);
+      // Activar todos los opcionales por defecto al cambiar tipo
+      const optIds = new Set(charges.filter(c => !c.mandatory).map(c => c.id));
+      setEnabledOptionalChargeIds(optIds);
     } catch {
       setDbCharges([]);
     }
@@ -192,11 +215,11 @@ export default function CreditSimulatorPage() {
       }));
   }
 
-  // ── Todos los cobros adicionales (obligatorios BD + opcionales usuario) ──
+  // ── Todos los cobros adicionales (obligatorios BD + opcionales habilitados + usuario) ──
   function getAllAdditionalCharges(): IndirectChargeInput[] {
     const dbObligatory = getDbChargesAsInputs();
     const dbOptional = dbCharges
-      .filter((c) => !c.mandatory)
+      .filter((c) => !c.mandatory && enabledOptionalChargeIds.has(c.id))
       .map((charge) => ({
         name: charge.name,
         type: charge.type,
@@ -567,28 +590,53 @@ export default function CreditSimulatorPage() {
                         </div>
                       )}
 
-                      {/* Cobros opcionales de la BD */}
+                      {/* Cobros opcionales de la BD con toggle */}
                       {optionalDbCharges.length > 0 && (
                         <div className="space-y-1.5">
                           <p className="text-[10px] font-semibold uppercase tracking-wider text-blue-400/80">
                             Opcionales (tipo de crédito)
                           </p>
-                          {optionalDbCharges.map((charge) => (
-                            <div
-                              key={charge.id}
-                              className="flex items-center justify-between rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2 text-xs"
-                            >
-                              <span className="text-slate-300">
-                                {charge.name} —{" "}
-                                {charge.type === "FIXED"
-                                  ? `$${charge.value}/mes`
-                                  : `${charge.value}% anual`}
-                              </span>
-                              <span className="rounded-full bg-blue-500/15 px-2 py-0.5 text-[9px] font-semibold text-blue-400">
-                                INCLUIDO
-                              </span>
-                            </div>
-                          ))}
+                          {optionalDbCharges.map((charge) => {
+                            const isEnabled = enabledOptionalChargeIds.has(charge.id);
+                            return (
+                              <label
+                                key={charge.id}
+                                className={`flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2 text-xs transition-colors ${
+                                  isEnabled
+                                    ? "border-blue-500/20 bg-blue-500/5"
+                                    : "border-white/5 bg-white/[0.01] opacity-60"
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isEnabled}
+                                  onChange={(e) => {
+                                    const next = new Set(enabledOptionalChargeIds);
+                                    if (e.target.checked) {
+                                      next.add(charge.id);
+                                    } else {
+                                      next.delete(charge.id);
+                                    }
+                                    setEnabledOptionalChargeIds(next);
+                                  }}
+                                  className="h-3.5 w-3.5 rounded border-white/20 bg-white/10 text-blue-500 accent-blue-500"
+                                />
+                                <span className="flex-1 text-slate-300">
+                                  {charge.name} —{" "}
+                                  {charge.type === "FIXED"
+                                    ? `$${charge.value}/mes`
+                                    : `${charge.value}% anual`}
+                                </span>
+                                <span className={`rounded-full px-2 py-0.5 text-[9px] font-semibold ${
+                                  isEnabled
+                                    ? "bg-blue-500/15 text-blue-400"
+                                    : "bg-slate-500/15 text-slate-500"
+                                }`}>
+                                  {isEnabled ? "INCLUIDO" : "EXCLUIDO"}
+                                </span>
+                              </label>
+                            );
+                          })}
                         </div>
                       )}
 
