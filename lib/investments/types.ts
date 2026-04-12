@@ -1,11 +1,20 @@
-export type RequestStatus = "PENDING" | "DOCUMENTS_UPLOADED" | "BIOMETRIC_VALIDATED" | "APPROVED" | "REJECTED";
+export type RequestStatus =
+  | "PENDING"
+  | "DOCUMENTS_UPLOADED"
+  | "BIOMETRIC_VALIDATED"
+  | "APPROVED"
+  | "REJECTED";
 
-export type CapitalizationFrequency = "MONTHLY" | "QUARTERLY" | "SEMIANNUAL" | "ANNUAL";
+export type CapitalizationFrequency =
+  | "MONTHLY"
+  | "QUARTERLY"
+  | "SEMIANNUAL"
+  | "ANNUAL";
 
 export type InvestmentProduct = {
   id: string;
   name: string;
-  purpose: string;
+  purpose?: string;
   minAmount: number;
   maxAmount: number;
   minTermMonths: number;
@@ -22,9 +31,17 @@ export type InvestmentSimulationInput = {
   termMonths: number;
 };
 
+export type InvestmentProjectionRow = {
+  month: number;
+  initialBalance: number;
+  interest: number;
+  finalBalance: number;
+};
+
 export type InvestmentSimulationResult = {
   productId: string;
   productName: string;
+  purpose?: string;
   amount: number;
   termMonths: number;
   annualRate: number;
@@ -33,6 +50,15 @@ export type InvestmentSimulationResult = {
   totalInterest: number;
   capitalizationFreq: CapitalizationFrequency;
   allowOutOfMargin: boolean;
+  outOfMargin: boolean;
+  warnings: string[];
+  projection: InvestmentProjectionRow[];
+  configuredRange: {
+    minAmount: number;
+    maxAmount: number;
+    minTermMonths: number;
+    maxTermMonths: number;
+  };
 };
 
 export type InvestmentRequestDocument = {
@@ -76,7 +102,8 @@ export type CreateInvestmentProductInput = {
   capitalizationFreq: CapitalizationFrequency;
 };
 
-export type UpdateInvestmentProductInput = Partial<CreateInvestmentProductInput>;
+export type UpdateInvestmentProductInput =
+  Partial<CreateInvestmentProductInput>;
 
 export type CreateInvestmentRequestInput = {
   userId: string;
