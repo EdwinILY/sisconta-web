@@ -22,6 +22,7 @@ import type { DocumentProps } from "@react-pdf/renderer";
 import { createElement, type ReactElement } from "react";
 import { CreditReportPDF } from "./CreditReportPDF";
 import type { SimulationResult } from "@/lib/credit/types";
+import type { CompanyInfo } from "./company";
 
 /** Tipo de descarga */
 export type DownloadMode = "FRENCH" | "GERMAN" | "BOTH";
@@ -32,18 +33,20 @@ export type DownloadMode = "FRENCH" | "GERMAN" | "BOTH";
  * @param resultFrench - Resultado con método Francés
  * @param resultGerman - Resultado con método Alemán
  * @param mode - Qué incluir en el PDF: FRENCH, GERMAN o BOTH
+ * @param companyInfo - Datos de la empresa (dinámicos desde admin)
  *
  * @example
- * // Descargar solo Francés
- * await downloadCreditPDF(frenchResult, germanResult, "FRENCH");
+ * // Descargar solo Francés con datos de empresa
+ * await downloadCreditPDF(frenchResult, germanResult, "FRENCH", companyInfo);
  *
- * // Descargar ambos métodos
+ * // Descargar ambos métodos (usa fallback si no se pasa companyInfo)
  * await downloadCreditPDF(frenchResult, germanResult, "BOTH");
  */
 export async function downloadCreditPDF(
   resultFrench: SimulationResult,
   resultGerman: SimulationResult,
-  mode: DownloadMode
+  mode: DownloadMode,
+  companyInfo?: CompanyInfo
 ): Promise<void> {
   // Seleccionar qué resultados incluir
   let results: SimulationResult[];
@@ -73,6 +76,7 @@ export async function downloadCreditPDF(
   // Usamos createElement para evitar problemas con JSX en archivos .ts
   const doc = createElement(CreditReportPDF, {
     results,
+    companyInfo,
     generatedAt: new Date(),
   }) as unknown as ReactElement<DocumentProps>;
 

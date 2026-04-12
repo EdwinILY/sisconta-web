@@ -19,14 +19,13 @@ import {
   deleteCreditType,
   CreditType,
 } from "@/lib/api/credit-types";
-import {
-  getChargesByCreditType,
+import { getChargesByCreditType,
   createCharge,
   updateCharge,
   deleteCharge,
   Charge,
 } from "@/lib/api/charges";
-import { ApiErrorInfo } from "@/lib/api/client";
+import { ApiErrorInfo, baseURL } from "@/lib/api/client";
 
 type Section = "institution" | "creditTypes" | "charges";
 
@@ -124,10 +123,10 @@ export default function AdminPage() {
   }, [router]);
 
   useEffect(() => {
-    if (section === "institution" && !institutionLoading && !institution) {
+    if (!institutionLoading && !institution) {
       void loadInstitution();
     }
-  }, [section]);
+  }, []);
 
   useEffect(() => {
     if (section === "creditTypes" && creditTypes.length === 0) {
@@ -160,8 +159,30 @@ export default function AdminPage() {
       setInstitutionName(data.name || "");
       setInstitutionRuc(data.ruc || "");
       setInstitutionContact(data.contact || "");
-      if ((data as any).logo) setLogoPreview((data as any).logo);
-      if ((data as any).logoUrl) setLogoPreview((data as any).logoUrl);
+      let logoPath = (data as any).logo || (data as any).logoUrl;
+      if (logoPath) {
+        if (!logoPath.startsWith("http") && !logoPath.startsWith("data:")) {
+          // Normalizar barras invertidas (Windows) a barras diagonales
+          logoPath = logoPath.replace(/\\/g, "/");
+          
+          // Asegurar que el path relativo incluya el prefijo /uploads/
+          if (!logoPath.includes("/uploads/")) {
+            if (logoPath.startsWith("/")) {
+              logoPath = `/uploads${logoPath}`;
+            } else {
+              logoPath = `/uploads/${logoPath}`;
+            }
+          } else if (!logoPath.startsWith("/")) {
+            // Caso donde el path tiene uploads pero no barra inicial
+            logoPath = "/" + logoPath;
+          }
+          
+          // Construir la URL absoluta usando el baseURL (apuntando al puerto 3000)
+          setLogoPreview(`${baseURL}${logoPath}`);
+        } else {
+          setLogoPreview(logoPath);
+        }
+      }
     } catch (err) {
       const error = err as ApiErrorInfo;
       setAlertError(error.message);
@@ -250,7 +271,10 @@ export default function AdminPage() {
 
   const handleCreditTypeSubmit = async () => {
     if (!validateCreditTypeForm()) return;
-    if (!institution) return;
+    if (!institution) {
+      setAlertError("No se ha cargado la información de la institución. Por favor recarga la página.");
+      return;
+    }
 
     setCreditTypeSubmitting(true);
 
@@ -371,19 +395,26 @@ export default function AdminPage() {
     setChargeSubmitting(true);
 
     try {
-      const data = {
-        name: chargeForm.name,
-        type: chargeForm.type,
-        value: parseFloat(chargeForm.value),
-        mandatory: chargeForm.mandatory,
-        creditTypeId: selectedCreditTypeId,
-      };
-
       if (editingChargeId) {
-        await updateCharge(editingChargeId, data);
+        // Al actualizar, NO enviar creditTypeId (el backend lo rechaza)
+        const updateData = {
+          name: chargeForm.name,
+          type: chargeForm.type,
+          value: parseFloat(chargeForm.value),
+          mandatory: chargeForm.mandatory,
+        };
+        await updateCharge(editingChargeId, updateData);
         setAlertSuccess("Cargo actualizado correctamente");
       } else {
-        await createCharge(data);
+        // Al crear, incluir creditTypeId
+        const createData = {
+          name: chargeForm.name,
+          type: chargeForm.type,
+          value: parseFloat(chargeForm.value),
+          mandatory: chargeForm.mandatory,
+          creditTypeId: selectedCreditTypeId,
+        };
+        await createCharge(createData);
         setAlertSuccess("Cargo creado correctamente");
       }
 
