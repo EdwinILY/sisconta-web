@@ -279,20 +279,28 @@ export default function AdminPage() {
     setCreditTypeSubmitting(true);
 
     try {
-      const data = {
-        name: creditTypeForm.name,
-        minAmount: parseFloat(creditTypeForm.minAmount),
-        maxAmount: parseFloat(creditTypeForm.maxAmount),
-        annualInterestRate: parseFloat(creditTypeForm.annualInterestRate),
-        amortizationSystems: creditTypeForm.amortizationSystems,
-        institutionId: institution.id,
-      };
-
       if (editingCreditTypeId) {
-        await updateCreditType(editingCreditTypeId, data);
+        // Al actualizar, no se debe enviar institutionId porque el backend lo rechaza
+        const updateData = {
+          name: creditTypeForm.name,
+          minAmount: parseFloat(creditTypeForm.minAmount),
+          maxAmount: parseFloat(creditTypeForm.maxAmount),
+          annualInterestRate: parseFloat(creditTypeForm.annualInterestRate),
+          amortizationSystems: creditTypeForm.amortizationSystems,
+        };
+        await updateCreditType(editingCreditTypeId, updateData);
         setAlertSuccess("Tipo de crédito actualizado correctamente");
       } else {
-        await createCreditType(data);
+        // Al crear, institutionId es obligatorio
+        const createData = {
+          name: creditTypeForm.name,
+          minAmount: parseFloat(creditTypeForm.minAmount),
+          maxAmount: parseFloat(creditTypeForm.maxAmount),
+          annualInterestRate: parseFloat(creditTypeForm.annualInterestRate),
+          amortizationSystems: creditTypeForm.amortizationSystems,
+          institutionId: institution.id,
+        };
+        await createCreditType(createData);
         setAlertSuccess("Tipo de crédito creado correctamente");
       }
 
