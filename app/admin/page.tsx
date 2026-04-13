@@ -2,29 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import {
-  getCurrentUser,
-  isAuthenticated,
-} from "@/lib/api/auth";
-import {
-  getInstitution,
-  updateInstitution,
-  uploadLogo,
-  Institution,
-} from "@/lib/api/institution";
-import {
-  getCreditTypes,
-  createCreditType,
-  updateCreditType,
-  deleteCreditType,
-  CreditType,
-} from "@/lib/api/credit-types";
-import { getChargesByCreditType,
-  createCharge,
-  updateCharge,
-  deleteCharge,
-  Charge,
-} from "@/lib/api/charges";
+import { getCurrentUser, isAuthenticated } from "@/lib/api/auth";
+import { getInstitution, createInstitution, updateInstitution, uploadLogo, Institution } from "@/lib/api/institution";
+import { getCreditTypes, createCreditType, updateCreditType, deleteCreditType, CreditType } from "@/lib/api/credit-types";
+import { getChargesByCreditType, createCharge, updateCharge, deleteCharge, Charge } from "@/lib/api/charges";
 import { ApiErrorInfo, baseURL } from "@/lib/api/client";
 
 type Section = "institution" | "creditTypes" | "charges";
@@ -59,13 +40,9 @@ export default function AdminPage() {
     annualInterestRate: "",
     amortizationSystems: [] as string[],
   });
-  const [creditTypeErrors, setCreditTypeErrors] = useState<Record<string, string>>(
-    {}
-  );
+  const [creditTypeErrors, setCreditTypeErrors] = useState<Record<string, string>>({});
   const [creditTypeSubmitting, setCreditTypeSubmitting] = useState(false);
-  const [editingCreditTypeId, setEditingCreditTypeId] = useState<string | null>(
-    null
-  );
+  const [editingCreditTypeId, setEditingCreditTypeId] = useState<string | null>(null);
   const [showCreditTypeModal, setShowCreditTypeModal] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
@@ -82,9 +59,7 @@ export default function AdminPage() {
   const [chargeSubmitting, setChargeSubmitting] = useState(false);
   const [showChargeModal, setShowChargeModal] = useState(false);
   const [editingChargeId, setEditingChargeId] = useState<string | null>(null);
-  const [deleteChargeConfirmId, setDeleteChargeConfirmId] = useState<string | null>(
-    null
-  );
+  const [deleteChargeConfirmId, setDeleteChargeConfirmId] = useState<string | null>(null);
 
   useEffect(() => {
     const qpSection = (searchParams.get("section") as Section) || "institution";
@@ -164,7 +139,7 @@ export default function AdminPage() {
         if (!logoPath.startsWith("http") && !logoPath.startsWith("data:")) {
           // Normalizar barras invertidas (Windows) a barras diagonales
           logoPath = logoPath.replace(/\\/g, "/");
-          
+
           // Asegurar que el path relativo incluya el prefijo /uploads/
           if (!logoPath.includes("/uploads/")) {
             if (logoPath.startsWith("/")) {
@@ -176,7 +151,7 @@ export default function AdminPage() {
             // Caso donde el path tiene uploads pero no barra inicial
             logoPath = "/" + logoPath;
           }
-          
+
           // Construir la URL absoluta usando el baseURL (apuntando al puerto 3000)
           setLogoPreview(`${baseURL}${logoPath}`);
         } else {
@@ -192,21 +167,31 @@ export default function AdminPage() {
   };
 
   const handleInstitutionSave = async () => {
-    if (!institution) return;
-
     setInstitutionLoading(true);
     try {
-      await updateInstitution(institution.id, {
-        name: institutionName,
-        ruc: institutionRuc,
-        contact: institutionContact,
-      });
+      let institutionId = institution?.id;
 
-      if (logoFile) {
-        await uploadLogo(institution.id, logoFile);
+      if (institutionId) {
+        await updateInstitution(institutionId, {
+          name: institutionName,
+          ruc: institutionRuc,
+          contact: institutionContact,
+        });
+      } else {
+        const created = await createInstitution({
+          name: institutionName,
+          ruc: institutionRuc,
+          contact: institutionContact,
+        });
+        institutionId = created.id;
+        setInstitution(created);
       }
 
-      setAlertSuccess("Institución actualizada correctamente");
+      if (logoFile && institutionId) {
+        await uploadLogo(institutionId, logoFile);
+      }
+
+      setAlertSuccess(institution ? "Institución actualizada correctamente" : "Institución creada correctamente");
       await loadInstitution();
       setLogoFile(null);
     } catch (err) {
@@ -473,19 +458,9 @@ export default function AdminPage() {
     setShowChargeModal(true);
   };
 
-  const sectionTitle =
-    section === "institution"
-      ? "Gestión de Institución"
-      : section === "creditTypes"
-      ? "Tipos de Crédito"
-      : "Cargos Indirectos";
+  const sectionTitle = section === "institution" ? "Gestión de Institución" : section === "creditTypes" ? "Tipos de Crédito" : "Cargos Indirectos";
 
-  const sectionDescription =
-    section === "institution"
-      ? "Actualiza la identidad visual y los datos generales de la institución."
-      : section === "creditTypes"
-      ? "Define montos, tasas y sistemas de amortización permitidos."
-      : "Administra cargos indirectos asociados a cada tipo de crédito.";
+  const sectionDescription = section === "institution" ? "Actualiza la identidad visual y los datos generales de la institución." : section === "creditTypes" ? "Define montos, tasas y sistemas de amortización permitidos." : "Administra cargos indirectos asociados a cada tipo de crédito.";
 
   if (loading) {
     return (
@@ -504,66 +479,33 @@ export default function AdminPage() {
         <header className="relative overflow-hidden border-b border-white/5">
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-500/10 via-transparent to-transparent" />
           <div className="relative px-6 py-10 text-center sm:px-8 lg:px-10">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-[0.25em] text-blue-400">
-              SISCONTA · ADMINISTRACIÓN
-            </p>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-[0.25em] text-blue-400">SISCONTA · ADMINISTRACIÓN</p>
             <h1 className="text-3xl font-bold tracking-tight sm:text-4xl xl:text-5xl">
-              <span className="bg-gradient-to-r from-white via-blue-200 to-indigo-300 bg-clip-text text-transparent">
-                Configuración del sistema
-              </span>
+              <span className="bg-gradient-to-r from-white via-blue-200 to-indigo-300 bg-clip-text text-transparent">Configuración del sistema</span>
             </h1>
-            <p className="mx-auto mt-4 max-w-2xl text-sm text-slate-400 sm:text-base">
-              Administra institución, tipos de crédito y cargos indirectos desde
-              una única vista centralizada.
-            </p>
+            <p className="mx-auto mt-4 max-w-2xl text-sm text-slate-400 sm:text-base">Administra institución, tipos de crédito y cargos indirectos desde una única vista centralizada.</p>
           </div>
         </header>
 
         {(alertError || alertSuccess) && (
           <div className="px-4 pt-4 sm:px-6 lg:px-8">
-            {alertError ? (
-              <div className="rounded-2xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-300">
-                {alertError}
-              </div>
-            ) : null}
+            {alertError ? <div className="rounded-2xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-300">{alertError}</div> : null}
 
-            {alertSuccess ? (
-              <div className="mt-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
-                {alertSuccess}
-              </div>
-            ) : null}
+            {alertSuccess ? <div className="mt-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">{alertSuccess}</div> : null}
           </div>
         )}
 
         <main className="px-4 py-6 sm:px-6 lg:px-8">
           <section className="space-y-6">
             <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 backdrop-blur-lg">
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
-                Configuración general
-              </p>
-              <h2 className="mt-2 text-2xl font-bold text-white">
-                {sectionTitle}
-              </h2>
-              <p className="mt-2 text-sm text-slate-400">
-                {sectionDescription}
-              </p>
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Configuración general</p>
+              <h2 className="mt-2 text-2xl font-bold text-white">{sectionTitle}</h2>
+              <p className="mt-2 text-sm text-slate-400">{sectionDescription}</p>
 
               <div className="mt-5 flex flex-wrap gap-3">
-                <TabButton
-                  active={section === "institution"}
-                  onClick={() => changeSection("institution")}
-                  label="Institución"
-                />
-                <TabButton
-                  active={section === "creditTypes"}
-                  onClick={() => changeSection("creditTypes")}
-                  label="Tipos de Crédito"
-                />
-                <TabButton
-                  active={section === "charges"}
-                  onClick={() => changeSection("charges")}
-                  label="Cargos Indirectos"
-                />
+                <TabButton active={section === "institution"} onClick={() => changeSection("institution")} label="Institución" />
+                <TabButton active={section === "creditTypes"} onClick={() => changeSection("creditTypes")} label="Tipos de Crédito" />
+                <TabButton active={section === "charges"} onClick={() => changeSection("charges")} label="Cargos Indirectos" />
               </div>
             </div>
 
@@ -633,56 +575,21 @@ export default function AdminPage() {
   );
 }
 
-function TabButton({
-  active,
-  onClick,
-  label,
-}: {
-  active: boolean;
-  onClick: () => void;
-  label: string;
-}) {
+function TabButton({ active, onClick, label }: { active: boolean; onClick: () => void; label: string }) {
   return (
-    <button
-      onClick={onClick}
-      className={`rounded-xl px-4 py-2.5 text-sm font-semibold transition ${
-        active
-          ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/20"
-          : "border border-white/10 bg-white/5 text-slate-300 hover:bg-white/10"
-      }`}
-    >
+    <button onClick={onClick} className={`rounded-xl px-4 py-2.5 text-sm font-semibold transition ${active ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/20" : "border border-white/10 bg-white/5 text-slate-300 hover:bg-white/10"}`}>
       {label}
     </button>
   );
 }
 
-function InstitutionSection({
-  institution,
-  loading,
-  institutionName,
-  setInstitutionName,
-  institutionRuc,
-  setInstitutionRuc,
-  institutionContact,
-  setInstitutionContact,
-  logoPreview,
-  setLogoPreview,
-  setLogoFile,
-  onSave,
-}: any) {
-  if (!institution) {
-    return (
-      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-8 text-center text-slate-400 backdrop-blur-lg">
-        <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-blue-300/20 border-t-blue-400" />
-        Cargando institución...
-      </div>
-    );
-  }
-
+function InstitutionSection({ institution, loading, institutionName, setInstitutionName, institutionRuc, setInstitutionRuc, institutionContact, setInstitutionContact, logoPreview, setLogoPreview, setLogoFile, onSave }: any) {
   return (
     <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
       <article className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 backdrop-blur-lg">
-        <h3 className="text-lg font-semibold text-white">Datos generales</h3>
+        <h3 className="text-lg font-semibold text-white">{institution ? "Datos generales" : "Registrar institución"}</h3>
+
+        {!institution ? <p className="mt-2 text-sm text-slate-400">Aún no existe una institución registrada. Completa los campos y guarda para crearla.</p> : null}
 
         <div className="mt-5 space-y-4">
           <Field label="Nombre">
@@ -715,11 +622,7 @@ function InstitutionSection({
             />
           </Field>
 
-          <button
-            onClick={onSave}
-            disabled={loading}
-            className="rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:from-blue-500 hover:to-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
-          >
+          <button onClick={onSave} disabled={loading} className="rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:from-blue-500 hover:to-indigo-500 disabled:cursor-not-allowed disabled:opacity-50">
             {loading ? "Guardando..." : "Guardar cambios"}
           </button>
         </div>
@@ -731,11 +634,7 @@ function InstitutionSection({
         <div className="mt-5 rounded-2xl border border-dashed border-white/10 bg-white/[0.02] p-6">
           {logoPreview ? (
             <div className="text-center">
-              <img
-                src={logoPreview}
-                alt="Logo"
-                className="mx-auto mb-4 max-h-48 max-w-full rounded-xl bg-white p-3"
-              />
+              <img src={logoPreview} alt="Logo" className="mx-auto mb-4 max-h-48 max-w-full rounded-xl bg-white p-3" />
               <p className="text-sm text-slate-400">Vista previa actual</p>
             </div>
           ) : (
@@ -768,91 +667,37 @@ function InstitutionSection({
   );
 }
 
-function CreditTypesSection({
-  creditTypes,
-  loading,
-  showForm,
-  onShowForm,
-  onHideForm,
-  form,
-  setForm,
-  errors,
-  submitting,
-  onSubmit,
-  onEdit,
-  onDelete,
-  deleteConfirmId,
-  onConfirmDelete,
-  onCancelDelete,
-}: any) {
+function CreditTypesSection({ creditTypes, loading, showForm, onShowForm, onHideForm, form, setForm, errors, submitting, onSubmit, onEdit, onDelete, deleteConfirmId, onConfirmDelete, onCancelDelete }: any) {
   return (
     <div className="space-y-4">
-      <button
-        onClick={onShowForm}
-        className="rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:from-blue-500 hover:to-indigo-500"
-      >
+      <button onClick={onShowForm} className="rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:from-blue-500 hover:to-indigo-500">
         + Nuevo Tipo de Crédito
       </button>
 
       {showForm && (
-        <Modal
-          title={form.name ? "Editar Tipo de Crédito" : "Crear Tipo de Crédito"}
-          onClose={onHideForm}
-        >
+        <Modal title={form.name ? "Editar Tipo de Crédito" : "Crear Tipo de Crédito"} onClose={onHideForm}>
           <div className="space-y-4">
             <Field label="Nombre" error={errors.name}>
-              <input
-                type="text"
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                className={inputClass(!!errors.name)}
-                disabled={submitting}
-              />
+              <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className={inputClass(!!errors.name)} disabled={submitting} />
             </Field>
 
             <Field label="Monto mínimo" error={errors.minAmount}>
-              <input
-                type="number"
-                value={form.minAmount}
-                onChange={(e) => setForm({ ...form, minAmount: e.target.value })}
-                className={inputClass(!!errors.minAmount)}
-                disabled={submitting}
-              />
+              <input type="number" value={form.minAmount} onChange={(e) => setForm({ ...form, minAmount: e.target.value })} className={inputClass(!!errors.minAmount)} disabled={submitting} />
             </Field>
 
             <Field label="Monto máximo" error={errors.maxAmount}>
-              <input
-                type="number"
-                value={form.maxAmount}
-                onChange={(e) => setForm({ ...form, maxAmount: e.target.value })}
-                className={inputClass(!!errors.maxAmount)}
-                disabled={submitting}
-              />
+              <input type="number" value={form.maxAmount} onChange={(e) => setForm({ ...form, maxAmount: e.target.value })} className={inputClass(!!errors.maxAmount)} disabled={submitting} />
             </Field>
 
             <Field label="Tasa anual (%)" error={errors.annualInterestRate}>
-              <input
-                type="number"
-                step="0.01"
-                value={form.annualInterestRate}
-                onChange={(e) =>
-                  setForm({ ...form, annualInterestRate: e.target.value })
-                }
-                className={inputClass(!!errors.annualInterestRate)}
-                disabled={submitting}
-              />
+              <input type="number" step="0.01" value={form.annualInterestRate} onChange={(e) => setForm({ ...form, annualInterestRate: e.target.value })} className={inputClass(!!errors.annualInterestRate)} disabled={submitting} />
             </Field>
 
             <div>
-              <p className="mb-2 text-sm font-medium text-slate-300">
-                Sistemas de amortización
-              </p>
+              <p className="mb-2 text-sm font-medium text-slate-300">Sistemas de amortización</p>
               <div className="space-y-2">
                 {["FRENCH", "GERMAN"].map((system) => (
-                  <label
-                    key={system}
-                    className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-slate-300"
-                  >
+                  <label key={system} className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-slate-300">
                     <input
                       type="checkbox"
                       checked={form.amortizationSystems.includes(system)}
@@ -860,18 +705,12 @@ function CreditTypesSection({
                         if (e.target.checked) {
                           setForm({
                             ...form,
-                            amortizationSystems: [
-                              ...form.amortizationSystems,
-                              system,
-                            ],
+                            amortizationSystems: [...form.amortizationSystems, system],
                           });
                         } else {
                           setForm({
                             ...form,
-                            amortizationSystems:
-                              form.amortizationSystems.filter(
-                                (s: string) => s !== system
-                              ),
+                            amortizationSystems: form.amortizationSystems.filter((s: string) => s !== system),
                           });
                         }
                       }}
@@ -883,11 +722,7 @@ function CreditTypesSection({
               </div>
             </div>
 
-            <ModalActions
-              onCancel={onHideForm}
-              onConfirm={onSubmit}
-              confirmText={submitting ? "Guardando..." : "Guardar"}
-            />
+            <ModalActions onCancel={onHideForm} onConfirm={onSubmit} confirmText={submitting ? "Guardando..." : "Guardar"} />
           </div>
         </Modal>
       )}
@@ -914,41 +749,21 @@ function CreditTypesSection({
                 {creditTypes.map((ct: CreditType) => (
                   <tr key={ct.id} className="hover:bg-white/[0.03]">
                     <td className="px-6 py-4 text-white">{ct.name}</td>
-                    <td className="px-6 py-4 text-slate-300">
-                      ${ct.minAmount.toLocaleString()}
-                    </td>
-                    <td className="px-6 py-4 text-slate-300">
-                      ${ct.maxAmount.toLocaleString()}
-                    </td>
-                    <td className="px-6 py-4 text-slate-300">
-                      {ct.annualInterestRate.toFixed(2)}%
-                    </td>
-                    <td className="px-6 py-4 text-slate-300">
-                      {ct.amortizationSystems.join(", ")}
-                    </td>
+                    <td className="px-6 py-4 text-slate-300">${ct.minAmount.toLocaleString()}</td>
+                    <td className="px-6 py-4 text-slate-300">${ct.maxAmount.toLocaleString()}</td>
+                    <td className="px-6 py-4 text-slate-300">{ct.annualInterestRate.toFixed(2)}%</td>
+                    <td className="px-6 py-4 text-slate-300">{ct.amortizationSystems.join(", ")}</td>
                     <td className="px-6 py-4">
                       <div className="flex gap-3">
-                        <button
-                          onClick={() => onEdit(ct)}
-                          className="text-blue-300 hover:text-blue-200"
-                        >
+                        <button onClick={() => onEdit(ct)} className="text-blue-300 hover:text-blue-200">
                           Editar
                         </button>
-                        <button
-                          onClick={() => onDelete(ct.id)}
-                          className="text-rose-300 hover:text-rose-200"
-                        >
+                        <button onClick={() => onDelete(ct.id)} className="text-rose-300 hover:text-rose-200">
                           Eliminar
                         </button>
                       </div>
 
-                      {deleteConfirmId === ct.id && (
-                        <ConfirmModal
-                          text="¿Estás seguro de que deseas eliminar este tipo de crédito?"
-                          onCancel={onCancelDelete}
-                          onConfirm={() => onConfirmDelete(ct.id)}
-                        />
-                      )}
+                      {deleteConfirmId === ct.id && <ConfirmModal text="¿Estás seguro de que deseas eliminar este tipo de crédito?" onCancel={onCancelDelete} onConfirm={() => onConfirmDelete(ct.id)} />}
                     </td>
                   </tr>
                 ))}
@@ -961,35 +776,12 @@ function CreditTypesSection({
   );
 }
 
-function ChargesSection({
-  creditTypes,
-  selectedCreditTypeId,
-  setSelectedCreditTypeId,
-  charges,
-  loading,
-  showForm,
-  onShowForm,
-  onHideForm,
-  form,
-  setForm,
-  errors,
-  submitting,
-  onSubmit,
-  onEdit,
-  onDelete,
-  deleteConfirmId,
-  onConfirmDelete,
-  onCancelDelete,
-}: any) {
+function ChargesSection({ creditTypes, selectedCreditTypeId, setSelectedCreditTypeId, charges, loading, showForm, onShowForm, onHideForm, form, setForm, errors, submitting, onSubmit, onEdit, onDelete, deleteConfirmId, onConfirmDelete, onCancelDelete }: any) {
   return (
     <div className="space-y-4">
       <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 backdrop-blur-lg">
         <Field label="Seleccionar Tipo de Crédito">
-          <select
-            value={selectedCreditTypeId}
-            onChange={(e) => setSelectedCreditTypeId(e.target.value)}
-            className={inputClass(false)}
-          >
+          <select value={selectedCreditTypeId} onChange={(e) => setSelectedCreditTypeId(e.target.value)} className={inputClass(false)}>
             <option value="" className="bg-slate-900">
               -- Elige un tipo de crédito --
             </option>
@@ -1004,10 +796,7 @@ function ChargesSection({
 
       {selectedCreditTypeId && (
         <>
-          <button
-            onClick={onShowForm}
-            className="rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:from-blue-500 hover:to-indigo-500"
-          >
+          <button onClick={onShowForm} className="rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:from-blue-500 hover:to-indigo-500">
             + Nuevo Cargo
           </button>
 
@@ -1015,13 +804,7 @@ function ChargesSection({
             <Modal title={form.name ? "Editar Cargo" : "Crear Cargo"} onClose={onHideForm}>
               <div className="space-y-4">
                 <Field label="Nombre" error={errors.name}>
-                  <input
-                    type="text"
-                    value={form.name}
-                    onChange={(e) => setForm({ ...form, name: e.target.value })}
-                    className={inputClass(!!errors.name)}
-                    disabled={submitting}
-                  />
+                  <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className={inputClass(!!errors.name)} disabled={submitting} />
                 </Field>
 
                 <Field label="Tipo">
@@ -1046,33 +829,15 @@ function ChargesSection({
                 </Field>
 
                 <Field label="Valor" error={errors.value}>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={form.value}
-                    onChange={(e) => setForm({ ...form, value: e.target.value })}
-                    className={inputClass(!!errors.value)}
-                    disabled={submitting}
-                  />
+                  <input type="number" step="0.01" value={form.value} onChange={(e) => setForm({ ...form, value: e.target.value })} className={inputClass(!!errors.value)} disabled={submitting} />
                 </Field>
 
                 <label className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-3 text-sm text-slate-300">
-                  <input
-                    type="checkbox"
-                    checked={form.mandatory}
-                    onChange={(e) =>
-                      setForm({ ...form, mandatory: e.target.checked })
-                    }
-                    disabled={submitting}
-                  />
+                  <input type="checkbox" checked={form.mandatory} onChange={(e) => setForm({ ...form, mandatory: e.target.checked })} disabled={submitting} />
                   Obligatorio
                 </label>
 
-                <ModalActions
-                  onCancel={onHideForm}
-                  onConfirm={onSubmit}
-                  confirmText={submitting ? "Guardando..." : "Guardar"}
-                />
+                <ModalActions onCancel={onHideForm} onConfirm={onSubmit} confirmText={submitting ? "Guardando..." : "Guardar"} />
               </div>
             </Modal>
           )}
@@ -1098,40 +863,20 @@ function ChargesSection({
                     {charges.map((charge: Charge) => (
                       <tr key={charge.id} className="hover:bg-white/[0.03]">
                         <td className="px-6 py-4 text-white">{charge.name}</td>
-                        <td className="px-6 py-4 text-slate-300">
-                          {charge.type === "FIXED" ? "Fijo" : "Porcentaje"}
-                        </td>
-                        <td className="px-6 py-4 text-slate-300">
-                          {charge.type === "FIXED"
-                            ? `$${charge.value.toFixed(2)}`
-                            : `${charge.value.toFixed(2)}%`}
-                        </td>
-                        <td className="px-6 py-4 text-slate-300">
-                          {charge.mandatory ? "Sí" : "No"}
-                        </td>
+                        <td className="px-6 py-4 text-slate-300">{charge.type === "FIXED" ? "Fijo" : "Porcentaje"}</td>
+                        <td className="px-6 py-4 text-slate-300">{charge.type === "FIXED" ? `$${charge.value.toFixed(2)}` : `${charge.value.toFixed(2)}%`}</td>
+                        <td className="px-6 py-4 text-slate-300">{charge.mandatory ? "Sí" : "No"}</td>
                         <td className="px-6 py-4">
                           <div className="flex gap-3">
-                            <button
-                              onClick={() => onEdit(charge)}
-                              className="text-blue-300 hover:text-blue-200"
-                            >
+                            <button onClick={() => onEdit(charge)} className="text-blue-300 hover:text-blue-200">
                               Editar
                             </button>
-                            <button
-                              onClick={() => onDelete(charge.id)}
-                              className="text-rose-300 hover:text-rose-200"
-                            >
+                            <button onClick={() => onDelete(charge.id)} className="text-rose-300 hover:text-rose-200">
                               Eliminar
                             </button>
                           </div>
 
-                          {deleteConfirmId === charge.id && (
-                            <ConfirmModal
-                              text="¿Estás seguro de que deseas eliminar este cargo?"
-                              onCancel={onCancelDelete}
-                              onConfirm={() => onConfirmDelete(charge.id)}
-                            />
-                          )}
+                          {deleteConfirmId === charge.id && <ConfirmModal text="¿Estás seguro de que deseas eliminar este cargo?" onCancel={onCancelDelete} onConfirm={() => onConfirmDelete(charge.id)} />}
                         </td>
                       </tr>
                     ))}
@@ -1146,20 +891,10 @@ function ChargesSection({
   );
 }
 
-function Field({
-  label,
-  children,
-  error,
-}: {
-  label: string;
-  children: React.ReactNode;
-  error?: string;
-}) {
+function Field({ label, children, error }: { label: string; children: React.ReactNode; error?: string }) {
   return (
     <div>
-      <label className="mb-1.5 block text-sm font-medium text-slate-300">
-        {label}
-      </label>
+      <label className="mb-1.5 block text-sm font-medium text-slate-300">{label}</label>
       {children}
       {error ? <p className="mt-1 text-sm text-rose-400">{error}</p> : null}
     </div>
@@ -1167,31 +902,16 @@ function Field({
 }
 
 function inputClass(hasError: boolean) {
-  return `w-full rounded-lg border bg-white/5 px-4 py-2.5 text-sm text-white outline-none transition ${
-    hasError
-      ? "border-rose-500/40 bg-rose-500/10 focus:ring-2 focus:ring-rose-500/20"
-      : "border-white/10 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-  }`;
+  return `w-full rounded-lg border bg-white/5 px-4 py-2.5 text-sm text-white outline-none transition ${hasError ? "border-rose-500/40 bg-rose-500/10 focus:ring-2 focus:ring-rose-500/20" : "border-white/10 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"}`;
 }
 
-function Modal({
-  title,
-  onClose,
-  children,
-}: {
-  title: string;
-  onClose: () => void;
-  children: React.ReactNode;
-}) {
+function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm">
       <div className="w-full max-w-md rounded-2xl border border-white/10 bg-slate-900 p-6 shadow-2xl">
         <div className="mb-5 flex items-center justify-between">
           <h3 className="text-lg font-semibold text-white">{title}</h3>
-          <button
-            onClick={onClose}
-            className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-slate-300 hover:bg-white/10"
-          >
+          <button onClick={onClose} className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-slate-300 hover:bg-white/10">
             ✕
           </button>
         </div>
@@ -1201,57 +921,29 @@ function Modal({
   );
 }
 
-function ModalActions({
-  onCancel,
-  onConfirm,
-  confirmText,
-}: {
-  onCancel: () => void;
-  onConfirm: () => void;
-  confirmText: string;
-}) {
+function ModalActions({ onCancel, onConfirm, confirmText }: { onCancel: () => void; onConfirm: () => void; confirmText: string }) {
   return (
     <div className="flex gap-3 pt-2">
-      <button
-        onClick={onCancel}
-        className="flex-1 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-slate-200 transition hover:bg-white/10"
-      >
+      <button onClick={onCancel} className="flex-1 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-slate-200 transition hover:bg-white/10">
         Cancelar
       </button>
-      <button
-        onClick={onConfirm}
-        className="flex-1 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-3 text-sm font-semibold text-white transition hover:from-blue-500 hover:to-indigo-500"
-      >
+      <button onClick={onConfirm} className="flex-1 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-3 text-sm font-semibold text-white transition hover:from-blue-500 hover:to-indigo-500">
         {confirmText}
       </button>
     </div>
   );
 }
 
-function ConfirmModal({
-  text,
-  onCancel,
-  onConfirm,
-}: {
-  text: string;
-  onCancel: () => void;
-  onConfirm: () => void;
-}) {
+function ConfirmModal({ text, onCancel, onConfirm }: { text: string; onCancel: () => void; onConfirm: () => void }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm">
       <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-slate-900 p-6 shadow-2xl">
         <p className="mb-6 text-sm text-slate-200">{text}</p>
         <div className="flex gap-3">
-          <button
-            onClick={onCancel}
-            className="flex-1 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-slate-200 transition hover:bg-white/10"
-          >
+          <button onClick={onCancel} className="flex-1 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-slate-200 transition hover:bg-white/10">
             Cancelar
           </button>
-          <button
-            onClick={onConfirm}
-            className="flex-1 rounded-xl bg-gradient-to-r from-rose-600 to-red-600 px-4 py-3 text-sm font-semibold text-white transition hover:from-rose-500 hover:to-red-500"
-          >
+          <button onClick={onConfirm} className="flex-1 rounded-xl bg-gradient-to-r from-rose-600 to-red-600 px-4 py-3 text-sm font-semibold text-white transition hover:from-rose-500 hover:to-red-500">
             Eliminar
           </button>
         </div>

@@ -8,17 +8,15 @@ export default function DashboardPage() {
   const router = useRouter();
 
   useEffect(() => {
-    // Verificar autenticación
     if (!isAuthenticated()) {
       router.push("/login");
       return;
     }
 
-    // Obtener usuario y redirigir según rol
     const user = getCurrentUser();
 
     if (user?.role === "ADMIN") {
-      router.push("/admin");
+      router.push("/admin/investments");
     } else if (user?.role === "CLIENT") {
       router.push("/simulate/credit");
     } else {
@@ -27,10 +25,10 @@ export default function DashboardPage() {
   }, [router]);
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-50">
-      <div className="text-center">
-        <div className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
-        <p className="text-gray-600">Cargando...</p>
+    <div className="flex min-h-screen items-center justify-center">
+      <div className="rounded-2xl border border-white/10 bg-white/3 px-6 py-5 text-center shadow-lg backdrop-blur-lg">
+        <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-cyan-400/20 border-t-cyan-300" />
+        <p className="text-sm text-slate-300">Redirigiendo...</p>
       </div>
     </div>
   );

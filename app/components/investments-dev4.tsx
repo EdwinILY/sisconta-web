@@ -14,6 +14,7 @@ import {
   uploadInvestmentRequestDocument,
   validateInvestmentRequestBiometrics,
 } from "@/lib/investments/api";
+import { getCurrentUser, isAuthenticated, type User } from "@/lib/api/auth";
 import { CapitalizationFrequency, InvestmentProduct, InvestmentRequest, InvestmentSimulationResult, RequestStatus } from "@/lib/investments/types";
 
 type RoleView = "CLIENT" | "ADMIN";
@@ -74,6 +75,7 @@ function parseRequiredNumber(value: string, label: string) {
 
 export default function InvestmentsDev4() {
   const [view, setView] = useState<RoleView>("CLIENT");
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [products, setProducts] = useState<InvestmentProduct[]>([]);
@@ -83,7 +85,6 @@ export default function InvestmentsDev4() {
   const [simulationTerm, setSimulationTerm] = useState("12");
   const [simulation, setSimulation] = useState<InvestmentSimulationResult | null>(null);
   const [activeRequest, setActiveRequest] = useState<InvestmentRequest | null>(null);
-  const [userId, setUserId] = useState("uuid-usuario");
   const [acceptTerms, setAcceptTerms] = useState(true);
   const [documentType, setDocumentType] = useState("IDENTITY");
   const [documentFile, setDocumentFile] = useState<File | null>(null);
@@ -98,12 +99,35 @@ export default function InvestmentsDev4() {
 
   const activeProduct = useMemo(() => products.find((product) => product.id === selectedProductId) ?? null, [products, selectedProductId]);
 
+  useEffect(() => {
+    if (!isAuthenticated()) {
+      setErrorMessage("Sesion no valida. Inicia sesion nuevamente.");
+      return;
+    }
+
+    const user = getCurrentUser();
+    setCurrentUser(user);
+
+    if (user?.role === "ADMIN") {
+      setView("ADMIN");
+    } else {
+      setView("CLIENT");
+    }
+  }, []);
+
   const refreshAllData = useCallback(async () => {
     setIsLoading(true);
     setErrorMessage(null);
 
     try {
-      const [productData, requestData] = await Promise.all([listInvestmentProducts(), listInvestmentRequests()]);
+      const productData = await listInvestmentProducts();
+
+      let requestData: InvestmentRequest[] = [];
+      try {
+        requestData = await listInvestmentRequests();
+      } catch {
+        requestData = [];
+      }
 
       setProducts(productData);
       setRequests(requestData);
@@ -170,12 +194,17 @@ export default function InvestmentsDev4() {
       return;
     }
 
+    if (!currentUser?.id) {
+      setErrorMessage("No se pudo identificar el usuario autenticado.");
+      return;
+    }
+
     setIsSubmitting(true);
     setSuccessMessage(null);
 
     try {
       const request = await createInvestmentRequest({
-        userId,
+        userId: currentUser.id,
         productId: selectedProductId,
         amount: parseRequiredNumber(simulationAmount, "monto"),
         termMonths: parseRequiredNumber(simulationTerm, "plazo"),
@@ -264,6 +293,11 @@ export default function InvestmentsDev4() {
   }
 
   async function handleAdminStatusUpdate(requestId: string, status: Extract<RequestStatus, "APPROVED" | "REJECTED">) {
+    if (currentUser?.role !== "ADMIN") {
+      setErrorMessage("Solo un administrador puede aprobar o rechazar solicitudes.");
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -305,6 +339,12 @@ export default function InvestmentsDev4() {
 
   async function handleProductSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (currentUser?.role !== "ADMIN") {
+      setErrorMessage("Solo un administrador puede gestionar productos de inversion.");
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -374,9 +414,11 @@ export default function InvestmentsDev4() {
           <button type="button" onClick={() => setView("CLIENT")} className={`rounded-full px-4 py-2 text-sm font-semibold transition ${view === "CLIENT" ? "bg-teal-700 text-white" : "border border-slate-300 bg-white text-slate-700"}`}>
             Vista cliente
           </button>
-          <button type="button" onClick={() => setView("ADMIN")} className={`rounded-full px-4 py-2 text-sm font-semibold transition ${view === "ADMIN" ? "bg-slate-900 text-white" : "border border-slate-300 bg-white text-slate-700"}`}>
-            Vista administrador
-          </button>
+          {currentUser?.role === "ADMIN" ? (
+            <button type="button" onClick={() => setView("ADMIN")} className={`rounded-full px-4 py-2 text-sm font-semibold transition ${view === "ADMIN" ? "bg-slate-900 text-white" : "border border-slate-300 bg-white text-slate-700"}`}>
+              Vista administrador
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={() => {
@@ -412,8 +454,8 @@ export default function InvestmentsDev4() {
                 </select>
               </label>
               <label className="space-y-2 text-sm font-medium text-slate-700">
-                ID de usuario
-                <input value={userId} onChange={(event) => setUserId(event.target.value)} className="w-full rounded-xl border border-slate-300 px-3 py-2" placeholder="uuid-usuario" />
+                Usuario
+                <input value={currentUser?.email ?? "No identificado"} readOnly className="w-full rounded-xl border border-slate-300 bg-slate-100 px-3 py-2" />
               </label>
               <label className="space-y-2 text-sm font-medium text-slate-700">
                 Monto
@@ -687,7 +729,7 @@ export default function InvestmentsDev4() {
           <article className="lg:col-span-2 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
             <h2 className="text-xl font-semibold text-slate-900">Solicitudes para decision final</h2>
             <div className="mt-4 overflow-x-auto">
-              <table className="w-full min-w-[720px] border-collapse text-sm">
+              <table className="w-full min-w-180 border-collapse text-sm">
                 <thead>
                   <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
                     <th className="px-2 py-2">ID</th>
