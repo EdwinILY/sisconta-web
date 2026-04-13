@@ -52,6 +52,11 @@ export default function CreditSimulatorPage() {
   const [downloading, setDownloading] = useState(false);
   const downloadMenuRef = useRef<HTMLDivElement>(null);
 
+  // ── Métodos de amortización disponibles para el tipo seleccionado ──
+  const availableMethods: AmortizationMethod[] = selectedCreditType?.amortizationSystems?.length
+    ? (selectedCreditType.amortizationSystems as AmortizationMethod[])
+    : ["FRENCH", "GERMAN"];
+
   // ── Cargar datos iniciales del API ──
   useEffect(() => {
     async function loadData() {
@@ -308,6 +313,20 @@ export default function CreditSimulatorPage() {
   async function handleDownload(mode: DownloadMode) {
     if (!resultFrench || !resultGerman) return;
 
+    // Verificar que el método esté permitido en el tipo de crédito seleccionado
+    if (mode === "FRENCH" && !availableMethods.includes("FRENCH")) {
+      setError("El método de amortización Francés no está permitido. Descarga cancelada.");
+      return;
+    }
+    if (mode === "GERMAN" && !availableMethods.includes("GERMAN")) {
+      setError("El método de amortización Alemán no está permitido. Descarga cancelada.");
+      return;
+    }
+    if (mode === "BOTH" && availableMethods.length < 2) {
+      setError("Debe estar habilitados ambos métodos para descargar comparativa.");
+      return;
+    }
+
     setDownloading(true);
     setShowDownloadMenu(false);
 
@@ -326,11 +345,6 @@ export default function CreditSimulatorPage() {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     });
-
-  // ── Métodos de amortización disponibles para el tipo seleccionado ──
-  const availableMethods: AmortizationMethod[] = selectedCreditType?.amortizationSystems?.length
-    ? (selectedCreditType.amortizationSystems as AmortizationMethod[])
-    : ["FRENCH", "GERMAN"];
 
   // ── Cobros totales para mostrar en el formulario ──
   const mandatoryDbCharges = dbCharges.filter((c) => c.mandatory);
@@ -863,55 +877,62 @@ export default function CreditSimulatorPage() {
                         {showDownloadMenu && (
                           <div className="absolute right-0 top-full z-50 mt-2 w-64 overflow-hidden rounded-xl border border-white/10 bg-slate-900/95 shadow-2xl shadow-black/50 backdrop-blur-xl">
                             <div className="p-1.5">
-                              <button
-                                type="button"
-                                onClick={() => handleDownload("FRENCH")}
-                                className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm text-slate-300 transition hover:bg-white/5 hover:text-white"
-                              >
-                                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-500/10 text-indigo-400">
-                                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                  </svg>
-                                </span>
-                                <div>
-                                  <p className="font-medium">Solo Francés</p>
-                                  <p className="text-xs text-slate-500">Cuota fija — 1 tabla</p>
-                                </div>
-                              </button>
+                              {availableMethods.includes("FRENCH") && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleDownload("FRENCH")}
+                                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm text-slate-300 transition hover:bg-white/5 hover:text-white"
+                                >
+                                  <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-500/10 text-indigo-400">
+                                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                    </svg>
+                                  </span>
+                                  <div>
+                                    <p className="font-medium">Solo Francés</p>
+                                    <p className="text-xs text-slate-500">Cuota fija — 1 tabla</p>
+                                  </div>
+                                </button>
+                              )}
 
-                              <button
-                                type="button"
-                                onClick={() => handleDownload("GERMAN")}
-                                className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm text-slate-300 transition hover:bg-white/5 hover:text-white"
-                              >
-                                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-500/10 text-violet-400">
-                                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                  </svg>
-                                </span>
-                                <div>
-                                  <p className="font-medium">Solo Alemán</p>
-                                  <p className="text-xs text-slate-500">Capital constante — 1 tabla</p>
-                                </div>
-                              </button>
+                              {availableMethods.includes("GERMAN") && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleDownload("GERMAN")}
+                                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm text-slate-300 transition hover:bg-white/5 hover:text-white"
+                                >
+                                  <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-500/10 text-violet-400">
+                                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                    </svg>
+                                  </span>
+                                  <div>
+                                    <p className="font-medium">Solo Alemán</p>
+                                    <p className="text-xs text-slate-500">Capital constante — 1 tabla</p>
+                                  </div>
+                                </button>
+                              )}
 
-                              <div className="my-1 border-t border-white/5" />
-
-                              <button
-                                type="button"
-                                onClick={() => handleDownload("BOTH")}
-                                className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm text-slate-300 transition hover:bg-white/5 hover:text-white"
-                              >
-                                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-400">
-                                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" />
-                                  </svg>
-                                </span>
-                                <div>
-                                  <p className="font-medium">Ambos métodos</p>
-                                  <p className="text-xs text-slate-500">Comparación completa — 2 tablas</p>
-                                </div>
-                              </button>
+                              {availableMethods.length > 1 && (
+                                <>
+                                  <div className="my-1 border-t border-white/5" />
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDownload("BOTH")}
+                                    className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm text-slate-300 transition hover:bg-white/5 hover:text-white"
+                                  >
+                                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-400">
+                                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" />
+                                      </svg>
+                                    </span>
+                                    <div>
+                                      <p className="font-medium">Ambos métodos</p>
+                                      <p className="text-xs text-slate-500">Comparación completa — 2 tablas</p>
+                                    </div>
+                                  </button>
+                                </>
+                              )}
                             </div>
                           </div>
                         )}
