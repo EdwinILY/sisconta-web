@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { getCurrentUser, isAuthenticated, type User } from "@/lib/api/auth";
 import { getApiErrorInfo } from "@/lib/api/client";
 import { createInvestmentRequest, getInvestmentRequest, listInvestmentProducts, listInvestmentRequests, updateInvestmentRequestStatus, uploadInvestmentRequestDocument, validateInvestmentRequestBiometrics } from "@/lib/investments/api";
@@ -52,8 +52,10 @@ export default function InvestmentProcess({ defaultView = "CLIENT" }: Investment
   const [activeRequestId, setActiveRequestId] = useState("");
   const [documentType, setDocumentType] = useState("IDENTITY");
   const [documentFile, setDocumentFile] = useState<File | null>(null);
-  const [biometricModality, setBiometricModality] = useState<"FACE" | "VOICE" | "FINGERPRINT">("FACE");
-  const [biometricResult, setBiometricResult] = useState<"SUCCESS" | "FAILED">("SUCCESS");
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+  const [cameraTimer, setCameraTimer] = useState<NodeJS.Timeout | null>(null);
+  const [cameraStatus, setCameraStatus] = useState<"ready" | "processing" | "completed">("ready");
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -121,6 +123,39 @@ export default function InvestmentProcess({ defaultView = "CLIENT" }: Investment
     void loadData();
   }, [currentUser, selectedProductId, activeRequestId]);
 
+  useEffect(() => {
+    return () => {
+      if (cameraStream) {
+        cameraStream.getTracks().forEach((track) => track.stop());
+      }
+      if (cameraTimer) {
+        clearTimeout(cameraTimer);
+      }
+    };
+  }, [cameraStream, cameraTimer]);
+
+  useEffect(() => {
+    if (cameraStream && videoRef.current) {
+      videoRef.current.srcObject = cameraStream;
+      videoRef.current.play().catch(() => {
+        // Ignora errores silenciosos de reproducción automática
+      });
+    }
+  }, [cameraStream]);
+
+  function getCameraStatusText() {
+    switch (cameraStatus) {
+      case "ready":
+        return "Listo";
+      case "processing":
+        return "Procesando...";
+      case "completed":
+        return "Completado";
+      default:
+        return "Listo";
+    }
+  }
+
   async function refreshRequests() {
     try {
       const data = await listInvestmentRequests();
@@ -182,6 +217,58 @@ export default function InvestmentProcess({ defaultView = "CLIENT" }: Investment
     }
   }
 
+  async function handleActivateCamera() {
+    if (cameraStream) {
+      return;
+    }
+
+    setErrorMessage(null);
+    setSuccessMessage(null);
+    setCameraStatus("processing");
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      setCameraStream(stream);
+
+      // Set timer for 10 seconds to auto-approve and close camera
+      const timer = setTimeout(async () => {
+        try {
+          // Stop camera
+          if (stream) {
+            stream.getTracks().forEach(track => track.stop());
+            setCameraStream(null);
+          }
+
+          // Auto-approve if there's an active request
+          if (activeRequestId) {
+            await validateInvestmentRequestBiometrics(activeRequestId, {
+              modality: "FACE",
+              forceResult: "SUCCESS",
+              metadata: {
+                provider: "mock-provider",
+                confidence: 0.98,
+              },
+            });
+            await refreshRequests();
+            setCameraStatus("completed");
+            setSuccessMessage("Validación biométrica completada automáticamente. Solicitud aprobada.");
+          }
+        } catch (error) {
+          const info = getApiErrorInfo(error);
+          setErrorMessage(`[${info.status}] ${info.message}`);
+          setCameraStatus("ready");
+        } finally {
+          setCameraTimer(null);
+        }
+      }, 10000);
+
+      setCameraTimer(timer);
+    } catch (error) {
+      setErrorMessage("Error al activar la cámara: " + (error instanceof Error ? error.message : "Permiso denegado"));
+      setCameraStatus("ready");
+    }
+  }
+
   async function handleUploadDocument(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -204,35 +291,6 @@ export default function InvestmentProcess({ defaultView = "CLIENT" }: Investment
       await refreshRequests();
       setDocumentFile(null);
       setSuccessMessage("Documento cargado correctamente.");
-    } catch (error) {
-      const info = getApiErrorInfo(error);
-      setErrorMessage(`[${info.status}] ${info.message}`);
-    } finally {
-      setIsSubmitting(false);
-    }
-  }
-
-  async function handleBiometricValidation() {
-    if (!activeRequestId) {
-      setErrorMessage("Selecciona una solicitud para validar biometría.");
-      return;
-    }
-
-    setIsSubmitting(true);
-    setErrorMessage(null);
-    setSuccessMessage(null);
-
-    try {
-      await validateInvestmentRequestBiometrics(activeRequestId, {
-        modality: biometricModality,
-        forceResult: biometricResult,
-        metadata: {
-          provider: "mock-provider",
-          confidence: biometricResult === "SUCCESS" ? 0.98 : 0.44,
-        },
-      });
-      await refreshRequests();
-      setSuccessMessage("Biometría procesada correctamente.");
     } catch (error) {
       const info = getApiErrorInfo(error);
       setErrorMessage(`[${info.status}] ${info.message}`);
@@ -429,41 +487,23 @@ export default function InvestmentProcess({ defaultView = "CLIENT" }: Investment
                 </article>
 
                 <article className="rounded-2xl border border-white/10 bg-white/3 p-5 backdrop-blur-lg">
-                  <h3 className="text-lg font-semibold text-white">3) Validación biométrica</h3>
-                  <div className="mt-4 grid gap-4 sm:grid-cols-3">
-                    <label className="block">
-                      <span className="mb-1.5 block text-sm text-slate-300">Modalidad</span>
-                      <select value={biometricModality} onChange={(e) => setBiometricModality(e.target.value as "FACE" | "VOICE" | "FINGERPRINT")} className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none">
-                        <option value="FACE" className="bg-slate-900">
-                          FACE
-                        </option>
-                        <option value="VOICE" className="bg-slate-900">
-                          VOICE
-                        </option>
-                        <option value="FINGERPRINT" className="bg-slate-900">
-                          FINGERPRINT
-                        </option>
-                      </select>
-                    </label>
-
-                    <label className="block">
-                      <span className="mb-1.5 block text-sm text-slate-300">Resultado de prueba</span>
-                      <select value={biometricResult} onChange={(e) => setBiometricResult(e.target.value as "SUCCESS" | "FAILED")} className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none">
-                        <option value="SUCCESS" className="bg-slate-900">
-                          SUCCESS
-                        </option>
-                        <option value="FAILED" className="bg-slate-900">
-                          FAILED
-                        </option>
-                      </select>
-                    </label>
-
-                    <div className="flex items-end">
-                      <button type="button" onClick={() => void handleBiometricValidation()} disabled={isSubmitting} className="w-full rounded-xl border border-cyan-400/30 bg-cyan-500/15 px-4 py-2.5 text-sm font-semibold text-cyan-200 transition hover:bg-cyan-500/25 disabled:opacity-50">
-                        Ejecutar biometría
+                  <h3 className="text-lg font-semibold text-white">3) Cámara</h3>
+                  <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-center gap-4">
+                      <button type="button" onClick={() => void handleActivateCamera()} disabled={isSubmitting || cameraStream !== null} className="rounded-xl border border-cyan-400/30 bg-cyan-500/15 px-4 py-2.5 text-sm font-semibold text-cyan-200 transition hover:bg-cyan-500/25 disabled:opacity-50">
+                        Activar cámara
                       </button>
+                      <span className="text-sm font-semibold text-green-400">
+                        Estado: {getCameraStatusText()}
+                      </span>
                     </div>
                   </div>
+
+                  {cameraStream && (
+                    <div className="mt-4">
+                      <video ref={videoRef} autoPlay muted playsInline className="w-full min-h-[240px] rounded-lg border border-white/10 bg-black" />
+                    </div>
+                  )}
                 </article>
 
                 <article className="rounded-2xl border border-white/10 bg-white/3 p-5 backdrop-blur-lg">
